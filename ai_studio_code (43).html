@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zombie Rollerz: Massive Red Cannon</title>
+    <style>
+        body { 
+            margin: 0; padding: 0; background-color: #333; 
+            overflow: hidden; touch-action: none;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; color: #fff; font-family: 'Arial', sans-serif;
+        }
+        #game-wrapper {
+            position: relative; width: 100%; height: 100%;
+            max-width: 540px; aspect-ratio: 9/16;
+            background: #e0e0e0;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            border: 2px solid #666;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        #rotate-msg { display: none; }
+        @media screen and (orientation: landscape) and (max-width: 900px) {
+            #game-wrapper { display: none; }
+            #rotate-msg { display: block; text-align: center; font-size: 20px; margin-top: 20%; color: #fff; }
+        }
+    </style>
+    <!-- 引入 Phaser 3.60 -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+</head>
+<body>
+
+<div id="rotate-msg">请旋转手机使用竖屏游玩<br>Please Rotate to Portrait</div>
+<div id="game-wrapper"><div id="game-container"></div></div>
+
+<script>
+// --- 游戏配置常量 ---
+const CONFIG = {
+    SPEED_PLAYER: 150,    
+    SPEED_ZOMBIE_BASE: 100, 
+    HP_ZOMBIE_BASE: 10,     
+    
+    BULLET_SPEED: 1500,   
+    FIRE_RATE: 25,       
+    HP_TRAMPLE_COST: 5,
+    COMBO_TIMEOUT: 2500,
+    
+    MAGNET_DIST: 400, 
+    MAGNET_SPEED: 600, 
+    
+    LIMIT_POWERUP: 8,
+    LIMIT_HEART: 10,
+
+    BOOMERANG_RADIUS: 130, 
+    BOOMERANG_SPEED: 0.15, 
+    DAMAGE_BOOMERANG: 5,
+    
+    DAMAGE_CANNON: 5,
+    CANNON_AOE_RADIUS: 120, 
+    CANNON_KNOCKBACK: 400,
+    CANNON_STUN_DURATION: 500,
+    
+    HIT_STUN_DURATION: 100 
+};
+
+const COLORS = {
+    PLAYER_BODY: 0x888888, 
+    PLAYER_DECK: 0xAAAAAA, 
+    WHEEL: 0x222222,       
+    WHEEL_TREAD: 0x000000, 
+    ZOMBIE: 0x009900,      
+    TURRET: 0xFFD700,      
+    HEART:  0xFF1493,      
+    LETTER: '#FF0000',     
+    BULLET: 0xFF8C00,      
+    ARROW:  0x333333,
+    POWERUP_BG: 0x800080, 
+    POWERUP_TEXT: '#FFFFFF',
+    HAPPY: 0xFFD700,
+    BOOMERANG_RING: 0xFFFF00,
+    CANNON_ICON: 0xFFD700,
+    
+    // 修改：炮弹改为红色
+    CANNON_BALL: 0xFF0000, 
+    EXPLOSION: 0xFF4500,
+    // 修改：拖尾颜色改为红色
+    TRAIL_COLOR: 0xFF0000,
+    // 修改：粒子基础色改为白色(方便染色)
+    TRAIL_BASE: 0xFFFFFF 
+};
+
+const gameConfig = {
+    type: Phaser.AUTO, 
+    scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        width: 540, height: 960
+    },
+    parent: 'game-container',
+    backgroundColor: '#e0e0e0',
+    physics: {
+        default: 'arcade',
+        arcade: { 
+            debug: false, 
+            gravity: { y: 0 },
+            fps: 60 
+        }
+    },
+    fps: { target: 60, min: 30 },
+    scene: { preload: preload, create: create, update: update },
+    pixelArt: true
+};
+
+const game = new Phaser.Game(gameConfig);
+
+// --- 全局变量 ---
+let player, directionArrow;
+let wheelLeft, wheelRight; 
+
+let cursors, joystickBase, joystickStick;
+let isTouching = false, touchStartPoint = { x: 0, y: 0 };
+let enemies, bullets, pickups, boomerangs;
+let explosionEmitter, cannonTrailManager; 
+
+let turretSlots = [
+    { x: -28, y: -35, occupied: false, sprite: null }, 
+    { x: 28,  y: -35, occupied: false, sprite: null }, 
+    { x: -38, y: 0,   occupied: false, sprite: null }, 
+    { x: 38,  y: 0,   occupied: false, sprite: null }, 
+    { x: -28, y: 35,  occupied: false, sprite: null }, 
+    { x: 28,  y: 35,  occupied: false, sprite: null }  
+];
+let activeTurrets = [];
+
+// 游戏状态
+let score = 0, gameTime = 60, hp = 100, maxHp = 100;
+let targetLetters = "HAPPYNEWYEAR".split('');
+let collectedIndices = [];
+let damagePerShot = 1; 
+
+let droppedCounts = { powerup: 0, heart: 0 };
+let happyCount = 0;
+
+let comboCount = 0;
+let comboTimerEvent = null;
+
+let timeText, hpText, scoreText, letterText, fpsText, happyText, debugText;
+let comboText, comboScaleTween; 
+let gameOver = false;
+let timerEvent, fireEvent;
+
+let boomerangGlobalAngle = 0;
+
+function preload() {}
+
+function setActionLog(msg) {
+    if(debugText) debugText.lastAction = msg;
+}
+
+function create() {
+    generateTextures(this);
+
+    this.physics.world.setBounds(0, 0, 2000, 2000);
+    this.cameras.main.setBounds(0, 0, 2000, 2000);
+    this.add.grid(1000, 1000, 2000, 2000, 128, 128, 0xe0e0e0).setOutlineStyle(0xbbbbbb);
+
+    wheelLeft = this.add.sprite(1000, 1000, 'wheelTex').setDepth(9); 
+    wheelRight = this.add.sprite(1000, 1000, 'wheelTex').setDepth(9);
+
+    player = this.physics.add.sprite(1000, 1000, 'playerTex');
+    player.setCollideWorldBounds(true);
+    player.body.setSize(80, 80); 
+    player.setDepth(10);
+    
+    this.cameras.main.startFollow(player, true, 0.1, 0.1);
+    this.cameras.main.setZoom(0.8);
+
+    directionArrow = this.add.sprite(player.x, player.y, 'arrowTex').setDepth(20).setVisible(false);
+
+    enemies = this.physics.add.group({ 
+        runChildUpdate: false,
+        bounceX: 0, bounceY: 0,
+        dragX: 500, dragY: 500
+    }); 
+    this.physics.add.collider(enemies, enemies);
+
+    bullets = this.physics.add.group({ 
+        defaultKey: 'bulletTex', 
+        maxSize: 800, 
+        runChildUpdate: false 
+    });
+    
+    boomerangs = this.physics.add.group({
+        runChildUpdate: false,
+        allowGravity: false,
+        immovable: true
+    });
+
+    pickups = this.physics.add.group();
+
+    const particleManager = this.add.particles(0, 0, 'bulletTex', {
+        lifespan: 300,
+        speed: { min: 100, max: 200 },
+        scale: { start: 1, end: 0 },
+        quantity: 8,
+        emitting: false 
+    });
+    particleManager.setDepth(15);
+    explosionEmitter = particleManager;
+
+    cursors = this.input.keyboard.createCursorKeys();
+    this.input.keyboard.addKeys('W,A,S,D');
+    this.input.addPointer(1);
+    setupVirtualJoystick(this);
+
+    spawnZombieWave(this);
+    
+    timerEvent = this.time.addEvent({ delay: 1000, callback: updateTimer, callbackScope: this, loop: true });
+    fireEvent = this.time.addEvent({ delay: CONFIG.FIRE_RATE, callback: fireTurrets, callbackScope: this, loop: true });
+
+    addTurret(this);
+    createUI(this);
+
+    this.physics.add.overlap(bullets, enemies, hitEnemy, null, this);
+    this.physics.add.overlap(boomerangs, enemies, hitEnemyByBoomerang, null, this);
+    
+    this.physics.add.overlap(player, enemies, handleTrample, null, this);
+    this.physics.add.overlap(player, pickups, collectPickup, null, this);
+}
+
+function update(time, delta) {
+    if (gameOver) return;
+
+    handlePlayerMovement(this, time);
+    updateVisuals(time);
+    handlePickupsMagnet(this);
+
+    const pX = player.x;
+    const pY = player.y;
+    
+    enemies.getChildren().forEach(enemy => {
+        if (!enemy.active) return;
+        
+        if (enemy.stunUntil && time < enemy.stunUntil) {
+            // Stunned
+        } else {
+            this.physics.moveTo(enemy, pX, pY, enemy.speed);
+            enemy.rotation = Phaser.Math.Angle.Between(enemy.x, enemy.y, pX, pY);
+        }
+    });
+
+    hpText.setText(`HP: ${Math.floor(hp)}`);
+    scoreText.setText(`SCORE: ${score}`);
+    happyText.setText(`HAPPY: ${happyCount}`);
+    
+    updateDebugInfo();
+}
+
+function updateDebugInfo() {
+    if(!debugText) return;
+    const elapsed = 60 - gameTime;
+    let allowedTurrets = 1;
+    if (elapsed < 15) allowedTurrets = 3;      
+    else if (elapsed < 30) allowedTurrets = 5; 
+    else allowedTurrets = 6;  
+
+    const debugStr = 
+`FPS: ${Math.round(game.loop.actualFps)}
+E: ${enemies.countActive()} | B: ${bullets.countActive()}
+T: ${activeTurrets.length}/${allowedTurrets}
+ACT: ${debugText.lastAction || '-'}`;
+
+    debugText.setText(debugStr);
+}
+
+function handlePickupsMagnet(scene) {
+    pickups.getChildren().forEach(drop => {
+        if (!drop.active) return;
+        if (!drop.canMagnet) return;
+
+        const dist = Phaser.Math.Distance.Between(drop.x, drop.y, player.x, player.y);
+        
+        if (dist <= CONFIG.MAGNET_DIST && !drop.isMagneting) {
+            drop.isMagneting = true;
+            scene.tweens.killTweensOf(drop); 
+        }
+        
+        if (drop.isMagneting) {
+            scene.physics.moveToObject(drop, player, CONFIG.MAGNET_SPEED);
+        }
+    });
+}
+
+function updateVisuals(time) {
+    directionArrow.x = player.x;
+    directionArrow.y = player.y;
+    const isMoving = player.body.velocity.length() > 10;
+
+    if (isMoving) {
+        directionArrow.setVisible(true);
+        directionArrow.setRotation(player.body.velocity.angle());
+    } else {
+        directionArrow.setVisible(false);
+    }
+
+    let angle = isMoving ? player.body.velocity.angle() : (directionArrow.rotation || 0);
+    let suspensionOffset = isMoving ? Math.sin(time * 0.02) * 3 : 0;
+    const sideDist = 58; 
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+
+    wheelLeft.x = player.x + ((-suspensionOffset) * cosA - (-sideDist) * sinA);
+    wheelLeft.y = player.y + ((-suspensionOffset) * sinA + (-sideDist) * cosA);
+    wheelLeft.rotation = angle; 
+
+    wheelRight.x = player.x + ((suspensionOffset) * cosA - (sideDist) * sinA);
+    wheelRight.y = player.y + ((suspensionOffset) * sinA + (sideDist) * cosA);
+    wheelRight.rotation = angle;
+
+    player.rotation = isMoving ? Math.sin(time * 0.025) * 0.03 : 0;
+
+    // Smart Targeting
+    let validTargets = enemies.getChildren().filter(e => e.active && Phaser.Math.Distance.Between(player.x, player.y, e.x, e.y) < 700);
+    validTargets.sort((a, b) => {
+        const distA = Phaser.Math.Distance.Between(player.x, player.y, a.x, a.y);
+        const distB = Phaser.Math.Distance.Between(player.x, player.y, b.x, b.y);
+        return distA - distB;
+    });
+
+    let gunTurrets = activeTurrets.filter(t => t.type === 'GUN');
+    gunTurrets.forEach((tInfo, index) => {
+        const turret = tInfo.sprite;
+        turret.x = player.x + tInfo.offsetX;
+        turret.y = player.y + tInfo.offsetY;
+        
+        if (validTargets.length > 0) {
+            const targetIndex = index % validTargets.length;
+            const target = validTargets[targetIndex];
+            tInfo.targetAngle = Phaser.Math.Angle.Between(turret.x, turret.y, target.x, target.y);
+            turret.rotation = tInfo.targetAngle;
+            tInfo.hasTarget = true;
+        } else {
+            tInfo.hasTarget = false;
+        }
+    });
+
+    let cannonTurrets = activeTurrets.filter(t => t.type === 'CANNON');
+    cannonTurrets.forEach((tInfo, index) => {
+        const turret = tInfo.sprite;
+        turret.x = player.x + tInfo.offsetX;
+        turret.y = player.y + tInfo.offsetY;
+        
+        if (validTargets.length > 0) {
+            const target = validTargets[0]; 
+            tInfo.targetAngle = Phaser.Math.Angle.Between(turret.x, turret.y, target.x, target.y);
+            turret.rotation = tInfo.targetAngle;
+            tInfo.hasTarget = true;
+            tInfo.targetEntity = target;
+        } else {
+            tInfo.hasTarget = false;
+            tInfo.targetEntity = null;
+        }
+    });
+
+    activeTurrets.filter(t => t.type === 'BOOMERANG').forEach(tInfo => {
+        tInfo.sprite.x = player.x + tInfo.offsetX;
+        tInfo.sprite.y = player.y + tInfo.offsetY;
+        tInfo.sprite.rotation += 0.05;
+    });
+
+    boomerangGlobalAngle += CONFIG.BOOMERANG_SPEED;
+    boomerangs.getChildren().forEach(b => {
+        if (!b.active) return;
+        let currentAngle = boomerangGlobalAngle + b.phaseOffset;
+        let radius = b.orbitRadius || CONFIG.BOOMERANG_RADIUS;
+
+        b.x = player.x + Math.cos(currentAngle) * radius;
+        b.y = player.y + Math.sin(currentAngle) * radius;
+        b.rotation += 0.4; 
+    });
+}
+
+function spawnZombieWave(scene) {
+    if (gameOver) return;
+
+    const progress = (60 - gameTime) / 60; 
+    let count = Phaser.Math.Between(2, 10);
+    let nextDelay = 1000 - (progress * 600); 
+
+    const cam = scene.cameras.main;
+    const padding = 50; 
+    const view = cam.worldView;
+    let centerX, centerY;
+    const side = Phaser.Math.Between(0, 3);
+    
+    if (side === 0) { centerX = Phaser.Math.Between(view.x, view.right); centerY = view.y - padding; } 
+    else if (side === 1) { centerX = Phaser.Math.Between(view.x, view.right); centerY = view.bottom + padding; } 
+    else if (side === 2) { centerX = view.x - padding; centerY = Phaser.Math.Between(view.y, view.bottom); } 
+    else { centerX = view.right + padding; centerY = Phaser.Math.Between(view.y, view.bottom); }
+
+    for(let i=0; i<count; i++) {
+        const offsetX = Phaser.Math.Between(-80, 80);
+        const offsetY = Phaser.Math.Between(-80, 80);
+        createOneEnemy(scene, centerX + offsetX, centerY + offsetY);
+    }
+    
+    setActionLog(`Spawn Wave (${count})`);
+    scene.time.delayedCall(nextDelay, () => spawnZombieWave(scene));
+}
+
+function createOneEnemy(scene, x, y) {
+    const enemy = enemies.create(x, y, 'zombieTex');
+    if(enemy) {
+        const elapsed = 60 - gameTime;
+        enemy.speed = CONFIG.SPEED_ZOMBIE_BASE + elapsed;
+        enemy.hp = CONFIG.HP_ZOMBIE_BASE + Math.floor(elapsed * 1.2);
+        
+        enemy.setCollideWorldBounds(false); 
+        enemy.setCircle(14, 2, 2); 
+        enemy.setDepth(5);
+        enemy.lastBoomerangHit = 0;
+        enemy.stunUntil = 0; 
+    }
+}
+
+function addTurret(scene) {
+    const slotIndex = turretSlots.findIndex(s => !s.occupied);
+    if (slotIndex === -1) return; 
+    const slot = turretSlots[slotIndex];
+    slot.occupied = true;
+
+    // Initial is GUN, then random
+    let type;
+    if (activeTurrets.length === 0) {
+        type = 'GUN';
+    } else {
+        const rand = Math.random();
+        if (rand < 0.33) type = 'GUN';
+        else if (rand < 0.66) type = 'BOOMERANG';
+        else type = 'CANNON';
+    }
+
+    let textureKey;
+    if (type === 'GUN') textureKey = 'turretTex';
+    else if (type === 'BOOMERANG') textureKey = 'boomerangIconTex';
+    else textureKey = 'cannonIconTex';
+
+    const tSprite = scene.add.sprite(player.x, player.y, textureKey);
+    tSprite.setDepth(11);
+    
+    let turretData = {
+        type: type,
+        sprite: tSprite,
+        offsetX: slot.x,
+        offsetY: slot.y,
+        hasTarget: false,
+        targetEntity: null, 
+        targetAngle: 0,
+        lastFired: 0 
+    };
+    activeTurrets.push(turretData);
+
+    if (type === 'BOOMERANG') {
+        spawnBoomerangProjectiles(scene);
+    }
+    
+    setActionLog("Installed " + type);
+}
+
+function spawnBoomerangProjectiles(scene) {
+    let baseOffset = Math.random() * Math.PI * 2;
+    const radiusMultipliers = [0.7, 1.0, 1.3];
+
+    for(let i=0; i<3; i++) {
+        let b = boomerangs.create(player.x, player.y, 'boomerangProjTex');
+        b.setDepth(20);
+        b.setCircle(20); 
+        b.phaseOffset = baseOffset + (i * (Math.PI * 2 / 3));
+        b.orbitRadius = CONFIG.BOOMERANG_RADIUS * radiusMultipliers[i]; 
+    }
+}
+
+function fireTurrets() {
+    if (gameOver) return;
+    const now = game.loop.now;
+
+    activeTurrets.forEach(tInfo => {
+        if (tInfo.type === 'GUN' && tInfo.hasTarget) {
+            const b = bullets.get(tInfo.sprite.x, tInfo.sprite.y);
+            if (b) {
+                b.setActive(true).setVisible(true);
+                b.body.enable = true;
+                b.setDepth(20);
+                this.physics.velocityFromRotation(tInfo.sprite.rotation, CONFIG.BULLET_SPEED, b.body.velocity);
+                this.time.delayedCall(1500, () => { 
+                    if(b.active) b.setActive(false).setVisible(false).body.enable = false; 
+                });
+            }
+        }
+        else if (tInfo.type === 'CANNON' && tInfo.hasTarget) {
+            if (now - tInfo.lastFired > 1500) {
+                tInfo.lastFired = now;
+                fireCannonBall(tInfo);
+            }
+        }
+    });
+}
+
+function fireCannonBall(tInfo) {
+    if (!tInfo.targetEntity || !tInfo.targetEntity.active) return;
+
+    const scene = tInfo.sprite.scene;
+    const ball = scene.add.sprite(tInfo.sprite.x, tInfo.sprite.y, 'cannonBallTex');
+    ball.setDepth(25);
+    
+    const target = tInfo.targetEntity;
+    const tx = target.x;
+    const ty = target.y;
+    
+    const dist = Phaser.Math.Distance.Between(ball.x, ball.y, tx, ty);
+    const duration = Phaser.Math.Clamp(dist * 4, 1000, 1500); 
+
+    // 修改：巨型火焰拖尾
+    const emitter = scene.add.particles(0, 0, 'trailTex', {
+        speed: 0,
+        lifespan: 300,
+        // 修改：放大 6.0倍 (看起来像巨型火球)
+        scale: { start: 6.0, end: 0 }, 
+        alpha: { start: 0.8, end: 0 },
+        quantity: 2,
+        frequency: 20,
+        blendMode: 'ADD',
+        tint: COLORS.TRAIL_COLOR // 红色
+    });
+    emitter.startFollow(ball);
+    emitter.setDepth(24);
+
+    scene.tweens.add({
+        targets: ball,
+        x: tx,
+        y: ty,
+        duration: duration,
+        ease: 'Linear',
+        onComplete: () => {
+            emitter.stop();
+            scene.time.delayedCall(500, () => emitter.destroy());
+            explodeCannonBall(scene, tx, ty);
+            ball.destroy();
+        }
+    });
+
+    scene.tweens.add({
+        targets: ball,
+        scaleX: 2.5,
+        scaleY: 2.5,
+        duration: duration / 2,
+        yoyo: true,
+        ease: 'Sine.easeOut'
+    });
+}
+
+function explodeCannonBall(scene, x, y) {
+    const core = scene.add.circle(x, y, 10, 0xFFCC00, 1);
+    core.setDepth(25);
+    
+    const wave = scene.add.circle(x, y, 10);
+    wave.setStrokeStyle(4, COLORS.EXPLOSION);
+    wave.setDepth(25);
+
+    scene.tweens.add({
+        targets: core,
+        scale: 4,
+        alpha: 0,
+        duration: 500,
+        onComplete: () => core.destroy()
+    });
+
+    scene.tweens.add({
+        targets: wave,
+        radius: CONFIG.CANNON_AOE_RADIUS,
+        alpha: 0,
+        duration: 800,
+        ease: 'Quad.out',
+        onComplete: () => wave.destroy()
+    });
+
+    enemies.getChildren().forEach(enemy => {
+        if (!enemy.active) return;
+        const dist = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
+        if (dist <= CONFIG.CANNON_AOE_RADIUS) {
+            enemy.hp -= CONFIG.DAMAGE_CANNON;
+            enemy.setTintFill(0xff0000); 
+            scene.time.delayedCall(100, () => { if(enemy.active) enemy.clearTint(); });
+
+            const angle = Phaser.Math.Angle.Between(x, y, enemy.x, enemy.y);
+            scene.physics.velocityFromRotation(angle, CONFIG.CANNON_KNOCKBACK, enemy.body.velocity);
+            
+            enemy.stunUntil = scene.time.now + CONFIG.CANNON_STUN_DURATION;
+
+            if (enemy.hp <= 0) killEnemy(enemy);
+        }
+    });
+}
+
+function handlePlayerMovement(scene, time) {
+    player.setVelocity(0);
+    let vx = 0, vy = 0;
+    let keys = scene.input.keyboard.addKeys('W,A,S,D');
+    if (cursors.left.isDown || keys.A.isDown) vx = -1;
+    else if (cursors.right.isDown || keys.D.isDown) vx = 1;
+    if (cursors.up.isDown || keys.W.isDown) vy = -1;
+    else if (cursors.down.isDown || keys.S.isDown) vy = 1;
+    if (isTouching) {
+        let dx = scene.input.activePointer.x - touchStartPoint.x;
+        let dy = scene.input.activePointer.y - touchStartPoint.y;
+        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+            let angle = Math.atan2(dy, dx);
+            vx = Math.cos(angle);
+            vy = Math.sin(angle);
+        }
+    }
+    if (vx !== 0 || vy !== 0) {
+        const vec = new Phaser.Math.Vector2(vx, vy).normalize().scale(CONFIG.SPEED_PLAYER);
+        player.setVelocity(vec.x, vec.y);
+    }
+}
+
+function setupVirtualJoystick(scene) {
+    scene.input.on('pointerdown', (pointer) => {
+        touchStartPoint.x = pointer.x;
+        touchStartPoint.y = pointer.y;
+        isTouching = true;
+    });
+    scene.input.on('pointerup', () => { isTouching = false; });
+}
+
+function hitEnemy(bullet, enemy) {
+    if (!bullet.active || !enemy.active) return;
+    bullet.setActive(false).setVisible(false).body.enable = false;
+    
+    applyDamageToEnemy(enemy, damagePerShot);
+}
+
+function hitEnemyByBoomerang(boomerang, enemy) {
+    if (!enemy.active) return;
+    
+    const now = game.loop.now;
+    if (now - enemy.lastBoomerangHit > 500) {
+        enemy.lastBoomerangHit = now;
+        applyDamageToEnemy(enemy, CONFIG.DAMAGE_BOOMERANG); 
+    }
+}
+
+function applyDamageToEnemy(enemy, dmg) {
+    enemy.hp -= dmg;
+    enemy.setTintFill(0xffffff);
+    enemy.scene.time.delayedCall(50, () => { if(enemy.active) enemy.clearTint(); });
+    
+    enemy.stunUntil = enemy.scene.time.now + CONFIG.HIT_STUN_DURATION;
+
+    if (enemy.hp <= 0) killEnemy(enemy);
+}
+
+function handleTrample(player, enemy) {
+    if (gameOver || !enemy.active) return;
+    hp -= CONFIG.HP_TRAMPLE_COST;
+    showFloatText(this, player.x, player.y - 60, `-${CONFIG.HP_TRAMPLE_COST}`, '#ff0000');
+    this.cameras.main.shake(100, 0.005);
+    killEnemy(enemy);
+    if (hp <= 0) doGameOver(this, false);
+}
+
+function killEnemy(enemy) {
+    if(!enemy.active) return;
+    explosionEmitter.emitParticleAt(enemy.x, enemy.y, 6);
+    
+    comboCount++;
+    if (comboTimerEvent) comboTimerEvent.remove(); 
+    comboTimerEvent = enemy.scene.time.delayedCall(CONFIG.COMBO_TIMEOUT, resetCombo, [], enemy.scene);
+    updateComboUI(); 
+
+    let killScore = 10 + (comboCount * 2);
+    score += killScore;
+
+    if (Phaser.Math.Between(0, 100) < 20) {
+        dropItem(enemy.scene, enemy.x, enemy.y, 'HAPPY');
+    }
+    else {
+        const chance = Phaser.Math.Between(0, 100);
+        const elapsed = 60 - gameTime; 
+        const allowedLetters = Math.floor(elapsed / 4) + 1;
+        const allowedHearts = Math.floor(elapsed / 6) + 1;
+        
+        let allowedPowerUps = 0;
+        if (elapsed < 30) allowedPowerUps = Math.floor(elapsed / 6) + 1;
+        else if (elapsed < 50) allowedPowerUps = 5;
+        else allowedPowerUps = 8;
+
+        let allowedTurretsTotal = 1; 
+        if (elapsed < 15) allowedTurretsTotal = 3;      
+        else if (elapsed < 30) allowedTurretsTotal = 5; 
+        else allowedTurretsTotal = 6;                   
+
+        if (chance < 8) {
+            if (droppedCounts.heart < CONFIG.LIMIT_HEART && droppedCounts.heart < allowedHearts) {
+                dropItem(enemy.scene, enemy.x, enemy.y, 'HEART');
+            }
+        } 
+        else if (chance < 25) {
+            let turretsOnGround = pickups.getChildren().filter(p => p.active && p.dropType === 'TURRET').length;
+            let currentTotal = activeTurrets.length + turretsOnGround;
+
+            if (currentTotal < allowedTurretsTotal) {
+                dropItem(enemy.scene, enemy.x, enemy.y, 'TURRET');
+            } else {
+                if (collectedIndices.length < allowedLetters) {
+                    dropItem(enemy.scene, enemy.x, enemy.y, 'LETTER');
+                }
+            }
+        }
+        else if (chance < 40) {
+            if (droppedCounts.powerup < CONFIG.LIMIT_POWERUP && droppedCounts.powerup < allowedPowerUps) {
+                dropItem(enemy.scene, enemy.x, enemy.y, 'POWERUP');
+            }
+        }
+        else {
+            if (collectedIndices.length < allowedLetters) {
+                dropItem(enemy.scene, enemy.x, enemy.y, 'LETTER');
+            }
+        }
+    }
+    
+    enemy.destroy();
+}
+
+function resetCombo() {
+    if(comboCount > 0) {
+        comboText.setText("");
+        comboCount = 0;
+    }
+}
+
+function updateComboUI() {
+    if (comboCount > 1) {
+        comboText.setText(`COMBO x${comboCount}`);
+        comboText.setVisible(true);
+        comboText.setScale(1.5);
+        
+        if(comboScaleTween) comboScaleTween.stop();
+        comboScaleTween = game.scene.scenes[0].tweens.add({
+            targets: comboText,
+            scaleX: 1, scaleY: 1,
+            duration: 200,
+            ease: 'Back.out'
+        });
+    } else {
+        comboText.setVisible(false);
+    }
+}
+
+function dropItem(scene, x, y, type) {
+    setActionLog("Dropped " + type);
+    
+    if (type === 'LETTER') {
+        let needed = [];
+        targetLetters.forEach((l, i) => { if(!collectedIndices.includes(i)) needed.push({l, i}); });
+        if (needed.length === 0) type = 'HEART'; 
+    }
+    
+    if (type === 'POWERUP') droppedCounts.powerup++;
+    if (type === 'HEART') droppedCounts.heart++;
+
+    let sprite;
+    if (type === 'HEART') sprite = pickups.create(x, y, 'heartTex');
+    else if (type === 'TURRET') sprite = pickups.create(x, y, 'turretDropTex');
+    else if (type === 'POWERUP') sprite = pickups.create(x, y, 'powerupTex');
+    else if (type === 'HAPPY') sprite = pickups.create(x, y, 'happyTex'); 
+    else if (type === 'LETTER') {
+        let needed = [];
+        targetLetters.forEach((l, i) => { if(!collectedIndices.includes(i)) needed.push({l, i}); });
+        let pick = Phaser.Utils.Array.GetRandom(needed);
+        const textObj = scene.add.text(x, y, pick.l, { 
+            fontSize: '28px', color: COLORS.LETTER, fontStyle: 'bold', fontFamily: 'Arial'
+        }).setOrigin(0.5);
+        scene.physics.add.existing(textObj);
+        pickups.add(textObj);
+        sprite = textObj;
+        sprite.letterIndex = pick.i;
+    }
+    
+    sprite.dropType = type;
+    sprite.isMagneting = false; 
+    sprite.canMagnet = false;
+    scene.time.delayedCall(1000, () => {
+        if(sprite.active) sprite.canMagnet = true;
+    });
+
+    sprite.setDepth(6);
+    
+    scene.tweens.add({ targets: sprite, y: y - 10, duration: 500, yoyo: true, repeat: -1 });
+}
+
+function collectPickup(player, drop) {
+    const scene = drop.scene;
+    setActionLog("Get " + drop.dropType);
+    
+    if (drop.dropType === 'HEART') {
+        hp = Math.min(hp + 20, maxHp);
+        showFloatText(scene, player.x, player.y, "+HP", COLORS.HEART);
+    } else if (drop.dropType === 'TURRET') {
+        if (activeTurrets.length < 6) {
+            addTurret(scene); 
+            let last = activeTurrets[activeTurrets.length-1];
+            let msg = last.type;
+            if(msg === 'BOOMERANG') msg = 'SAW!';
+            showFloatText(scene, player.x, player.y, msg + "!", COLORS.TURRET);
+        } else {
+            score += 200;
+            showFloatText(scene, player.x, player.y, "+200", COLORS.TURRET);
+        }
+    } else if (drop.dropType === 'POWERUP') {
+        damagePerShot += 1;
+        showFloatText(scene, player.x, player.y, "POW UP!", COLORS.POWERUP_BG);
+        score += 100;
+    } else if (drop.dropType === 'HAPPY') {
+        happyCount++;
+        showFloatText(scene, player.x, player.y, "HAPPY!", COLORS.HAPPY);
+        score += 300;
+    } else if (drop.dropType === 'LETTER') {
+        if (!collectedIndices.includes(drop.letterIndex)) {
+            collectedIndices.push(drop.letterIndex);
+            updateLetterUI();
+            showFloatText(scene, player.x, player.y, drop.text, COLORS.LETTER);
+            score += 500;
+        }
+    }
+    drop.destroy();
+}
+
+function showFloatText(scene, x, y, msg, color) {
+    const txt = scene.add.text(x, y - 40, msg, { 
+        fontSize: '24px', color: (typeof color === 'string' ? color : '#' + color.toString(16)), 
+        fontStyle: 'bold', stroke: '#fff', strokeThickness: 3 
+    }).setOrigin(0.5).setDepth(100);
+    scene.tweens.add({ targets: txt, y: y - 100, alpha: 0, duration: 800, onComplete: () => txt.destroy() });
+}
+
+function generateTextures(scene) {
+    const g = scene.make.graphics({x:0, y:0, add:false});
+    
+    g.fillStyle(COLORS.PLAYER_BODY, 1); g.fillRect(0,0,96,96); 
+    g.lineStyle(4, 0x555555); g.strokeRect(0,0,96,96);
+    g.fillStyle(COLORS.PLAYER_DECK, 1); g.fillRect(10,10,76,76); 
+    g.generateTexture('playerTex', 96, 96);
+    
+    g.clear(); g.fillStyle(COLORS.WHEEL, 1); g.fillRect(0, 0, 76, 20); 
+    g.fillStyle(COLORS.WHEEL_TREAD, 0.5);
+    for(let i=0; i<76; i+=10) { g.fillRect(i, 0, 4, 20); }
+    g.generateTexture('wheelTex', 76, 20);
+
+    g.clear(); g.fillStyle(COLORS.TURRET, 1); g.fillTriangle(24, 12, 0, 0, 0, 24); 
+    g.lineStyle(1, 0x000000); g.strokeTriangle(24, 12, 0, 0, 0, 24);
+    g.generateTexture('turretTex', 24, 24);
+    
+    g.clear(); g.fillStyle(COLORS.BOOMERANG_RING, 1); g.fillCircle(12, 12, 10);
+    g.lineStyle(2, 0x000000); g.strokeCircle(12, 12, 10);
+    g.generateTexture('boomerangIconTex', 24, 24);
+
+    // Boomerang Projectile
+    g.clear(); g.lineStyle(4, COLORS.BOOMERANG_RING); g.strokeCircle(20, 20, 16);
+    g.generateTexture('boomerangProjTex', 40, 40);
+    
+    g.clear(); g.fillStyle(COLORS.CANNON_ICON, 1); g.fillRect(0,0,24,24);
+    g.lineStyle(2, 0x000000); g.strokeRect(0,0,24,24);
+    g.generateTexture('cannonIconTex', 24, 24);
+
+    // Modified Cannon Ball: Red
+    g.clear(); g.fillStyle(COLORS.CANNON_BALL, 1); g.fillCircle(8,8,8);
+    g.generateTexture('cannonBallTex', 16, 16);
+
+    // Modified Trail: White (for tinting)
+    g.clear(); g.fillStyle(COLORS.TRAIL_BASE, 1); g.fillCircle(5,5,5);
+    g.generateTexture('trailTex', 10, 10);
+    
+    g.clear(); g.fillStyle(COLORS.TURRET, 1); g.lineStyle(2,0); g.fillRect(0,0,20,20); g.strokeRect(0,0,20,20); g.generateTexture('turretDropTex', 20, 20);
+    
+    g.clear(); g.fillStyle(COLORS.ARROW, 1); g.fillTriangle(40, 20, 0, 40, 0, 0); g.generateTexture('arrowTex', 40, 40);
+    g.clear(); g.fillStyle(COLORS.ZOMBIE, 1); g.fillRect(0,0,32,32); g.fillStyle(0x004400, 1); g.fillRect(6,6,6,6); g.fillRect(20,6,6,6); g.generateTexture('zombieTex', 32, 32);
+    g.clear(); g.fillStyle(COLORS.BULLET, 1); g.fillCircle(4,4,4); g.generateTexture('bulletTex', 8, 8);
+    g.clear(); g.fillStyle(COLORS.HEART, 1); g.fillCircle(8,8,8); g.generateTexture('heartTex', 16, 16);
+    g.clear(); g.fillStyle(COLORS.POWERUP_BG, 1); g.fillRect(0,0,24,24); g.lineStyle(2, 0xffffff); g.strokeRect(0,0,24,24); g.fillStyle(0xffffff, 1); g.fillRect(4, 4, 16, 4); g.fillRect(4, 4, 4, 16); g.fillRect(16, 4, 4, 8); g.fillRect(4, 12, 16, 4); g.generateTexture('powerupTex', 24, 24);
+    g.clear(); g.fillStyle(COLORS.HAPPY, 1); g.fillCircle(12, 12, 12); g.fillStyle(0x000000, 1); g.fillCircle(8, 10, 2); g.fillCircle(16, 10, 2); g.beginPath(); g.lineStyle(2, 0x000000); g.arc(12, 12, 6, 0.1*Math.PI, 0.9*Math.PI, false); g.strokePath(); g.generateTexture('happyTex', 24, 24);
+}
+
+function createUI(scene) {
+    timeText = scene.add.text(gameConfig.scale.width/2, 60, '60', { fontSize: '64px', fill: '#333', fontStyle: 'bold', stroke: '#fff', strokeThickness: 4 }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
+    hpText = scene.add.text(20, 20, 'HP: 100', { fontSize: '24px', fill: '#FF1493', fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 }).setScrollFactor(0).setDepth(200);
+    scoreText = scene.add.text(20, 55, 'SCORE: 0', { fontSize: '24px', fill: '#333', fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 }).setScrollFactor(0).setDepth(200);
+    happyText = scene.add.text(20, 90, 'HAPPY: 0', { fontSize: '24px', fill: '#FFD700', fontStyle: 'bold', stroke: '#333', strokeThickness: 3 }).setScrollFactor(0).setDepth(200);
+    letterText = scene.add.text(gameConfig.scale.width/2, gameConfig.scale.height - 80, getLetterString(), { 
+        fontSize: '32px', fill: '#333', fontFamily: 'monospace', fontStyle: 'bold', align: 'center', stroke: '#fff', strokeThickness: 4
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
+    fpsText = scene.add.text(10, gameConfig.scale.height - 30, 'FPS: 60', { 
+        fontSize: '18px', fill: '#00aa00', fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 
+    }).setScrollFactor(0).setDepth(500);
+    
+    debugText = scene.add.text(gameConfig.scale.width - 200, 20, '', { 
+        fontSize: '14px', fill: '#00ffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 2,
+        align: 'right'
+    }).setScrollFactor(0).setDepth(500).setOrigin(0, 0);
+
+    comboText = scene.add.text(20, 150, '', { fontSize: '48px', fill: '#FF4500', fontStyle: 'bold', stroke: '#fff', strokeThickness: 6 }).setScrollFactor(0).setDepth(200).setVisible(false);
+}
+
+function updateTimer() {
+    if (gameOver) return;
+    gameTime--;
+    timeText.setText(gameTime);
+    if (gameTime <= 0) doGameOver(this, true);
+}
+
+function getLetterString() {
+    let display = "";
+    for(let i=0; i<targetLetters.length; i++) {
+        display += collectedIndices.includes(i) ? targetLetters[i] + " " : "_ "; 
+    }
+    return display;
+}
+
+function updateLetterUI() { letterText.setText(getLetterString()); }
+
+function doGameOver(scene, win) {
+    gameOver = true;
+    scene.physics.pause();
+    timerEvent.remove(); 
+    fireEvent.remove();
+    if(comboTimerEvent) comboTimerEvent.remove();
+    const cam = scene.cameras.main;
+    const overlay = scene.add.rectangle(cam.scrollX + gameConfig.scale.width/2, cam.scrollY + gameConfig.scale.height/2, gameConfig.scale.width, gameConfig.scale.height, 0x000000, 0.85).setDepth(300);
+    const msg = win ? "HAPPY NEW YEAR!" : "GAME OVER";
+    const color = win ? "#FFFF00" : "#FF0000";
+    scene.add.text(overlay.x, overlay.y - 100, msg, { fontSize: '48px', fill: color, fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 }).setOrigin(0.5).setDepth(301);
+    scene.add.text(overlay.x, overlay.y, "Score: " + score, { fontSize: '32px', fill: '#fff' }).setOrigin(0.5).setDepth(301);
+    scene.add.text(overlay.x, overlay.y + 50, "Happy Collected: " + happyCount, { fontSize: '28px', fill: '#FFD700' }).setOrigin(0.5).setDepth(301);
+    scene.add.text(overlay.x, overlay.y + 100, getLetterString(), { fontSize: '36px', fill: '#FF0000' }).setOrigin(0.5).setDepth(301);
+    scene.add.text(overlay.x, overlay.y + 180, "Tap to Restart", { fontSize: '20px', fill: '#aaa' }).setOrigin(0.5).setDepth(301);
+    scene.input.on('pointerdown', () => location.reload());
+    if (win) {
+        for(let i=0; i<30; i++) {
+            scene.time.delayedCall(i * 150, () => {
+                const fx = overlay.x + Phaser.Math.Between(-200, 200);
+                const fy = overlay.y + Phaser.Math.Between(-300, 300);
+                scene.add.text(fx, fy, '💥', { fontSize: '48px' }).setOrigin(0.5).setDepth(302);
+            });
+        }
+    }
+}
+</script>
+</body>
+</html>
