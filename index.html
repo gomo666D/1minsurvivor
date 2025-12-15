@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Zombie Rollerz: Desert Map</title>
+    <title>Zombie Rollerz: Bigger Boomerang Hitbox</title>
     <style>
         body { 
             margin: 0; padding: 0; background-color: #333; 
@@ -34,38 +34,43 @@
             color: white;
             text-align: center;
         }
-        #game-over-ui h1 { font-size: 40px; margin-bottom: 10px; text-shadow: 0 0 10px red; }
-        .stat-box { font-size: 24px; margin: 10px 0; color: #ddd; }
-        .highlight { color: #FFD700; font-weight: bold; font-size: 32px; }
         
-        #input-container { margin-top: 30px; display: flex; flex-direction: column; gap: 15px; width: 70%; }
+        #go-top-section {
+            height: 40%; width: 100%; display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            border-bottom: 2px solid #444; padding: 20px 0; box-sizing: border-box;
+        }
+        #leaderboard-section {
+            height: 60%; width: 100%; background: rgba(255, 255, 255, 0.05);
+            display: flex; flex-direction: column; justify-content: start;
+            align-items: center; padding-top: 20px; overflow-y: auto;
+        }
+
+        #go-title { font-size: 36px; margin: 5px 0; text-shadow: 0 0 10px red; }
+        .score-row { display: flex; gap: 20px; font-size: 20px; margin: 5px 0; color: #ddd; }
+        .highlight { color: #FFD700; font-weight: bold; }
+        
+        #name-display-area { font-size: 24px; color: #00ffff; font-weight: bold; margin: 10px 0; }
+        #input-area { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
         input[type="text"] {
-            padding: 10px; font-size: 20px; text-align: center;
-            border: 2px solid #FFD700; border-radius: 5px; background: #222; color: white;
+            padding: 8px; font-size: 18px; text-align: center;
+            border: 2px solid #FFD700; border-radius: 5px; background: #222; color: white; width: 200px;
         }
         button#restart-btn {
-            padding: 15px; font-size: 24px; font-weight: bold;
+            padding: 10px 30px; font-size: 20px; font-weight: bold;
             background: #FF4500; color: white; border: none; border-radius: 5px;
-            cursor: pointer; transition: transform 0.1s;
+            cursor: pointer; transition: transform 0.1s; margin-top: 5px;
         }
         button#restart-btn:active { transform: scale(0.95); }
 
-        /* --- Debug 按钮样式 --- */
+        #lb-placeholder-text { color: #888; font-style: italic; margin-top: 50px; }
+
         #debug-btn {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            z-index: 500;
-            padding: 8px 15px;
-            background: rgba(0, 0, 0, 0.6);
-            color: #00FF00;
-            border: 2px solid #00FF00;
-            font-family: monospace;
-            font-weight: bold;
-            font-size: 16px;
-            cursor: pointer;
-            border-radius: 5px;
-            user-select: none;
+            position: absolute; bottom: 10px; left: 10px; z-index: 500;
+            padding: 8px 15px; background: rgba(0, 0, 0, 0.6);
+            color: #00FF00; border: 2px solid #00FF00;
+            font-family: monospace; font-weight: bold; font-size: 16px;
+            cursor: pointer; border-radius: 5px; user-select: none;
         }
         #debug-btn:active { background: rgba(0, 255, 0, 0.2); }
 
@@ -74,7 +79,6 @@
             #rotate-msg { display: block; text-align: center; font-size: 20px; margin-top: 20%; color: #fff; }
         }
     </style>
-    <!-- 引入 Phaser 3.60 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
 </head>
 <body>
@@ -83,31 +87,35 @@
 
 <div id="game-wrapper">
     <div id="game-container"></div>
-    
-    <!-- Debug 按钮 -->
     <button id="debug-btn">DEBUG: OFF</button>
 
     <div id="game-over-ui">
-        <h1 id="go-title">GAME OVER</h1>
-        <div class="stat-box">Score: <span id="go-score" class="highlight">0</span></div>
-        <div class="stat-box">Best: <span id="go-best" class="highlight">0</span></div>
-        <div class="stat-box" style="font-size: 18px; color: #FFD700;">Happy: <span id="go-happy">0</span></div>
-        <div class="stat-box" style="font-size: 18px; color: #FF0000;" id="go-letters"></div>
-        <div id="input-container">
-            <label>ENTER YOUR NAME:</label>
-            <input type="text" id="player-name" placeholder="Survivor" maxlength="10">
+        <div id="go-top-section">
+            <h1 id="go-title">GAME OVER</h1>
+            <div id="name-display-area" style="display:none;"></div>
+            <div class="score-row">
+                <div>Score: <span id="go-score" class="highlight">0</span></div>
+                <div>Best: <span id="go-best" class="highlight">0</span></div>
+            </div>
+            <div style="font-size: 16px; color: #FFD700; margin-bottom: 5px;">Happy: <span id="go-happy">0</span></div>
+            <div style="font-size: 16px; color: #FF0000; margin-bottom: 5px;" id="go-letters"></div>
+            <div id="input-area">
+                <input type="text" id="player-name-input" placeholder="Enter Your Name" maxlength="12">
+            </div>
             <button id="restart-btn">RESTART</button>
+        </div>
+        <div id="leaderboard-section">
+            <h2 style="color: #FFD700; border-bottom: 1px solid #666; width: 80%; padding-bottom: 10px;">GLOBAL RANKING</h2>
+            <div id="lb-placeholder-text">Checking server...<br>(Leaderboard Area 60%)</div>
         </div>
     </div>
 </div>
 
 <script>
-// --- 调试配置 ---
 const DEBUG_SLOTS = false; 
 
 const CONFIG = {
     PLAYER_SCALE: 0.85, 
-
     SPEED_PLAYER: 150,    
     SPEED_ZOMBIE_BASE: 100, 
     HP_ZOMBIE_BASE: 10,     
@@ -144,7 +152,6 @@ const gameConfig = {
     type: Phaser.AUTO, 
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 540, height: 960 },
     parent: 'game-container',
-    // --- 修改点：更改背景颜色 ---
     backgroundColor: '#f7ce65',
     physics: { default: 'arcade', arcade: { debug: false, gravity: { y: 0 }, fps: 60 } },
     fps: { target: 60, min: 30 },
@@ -156,9 +163,9 @@ const game = new Phaser.Game(gameConfig);
 
 // Globals
 let player, directionArrow;
-let wheelLeft, wheelRight;
+let playerShadow; 
+let wheelLeft, wheelRight, wheelLeftShadow, wheelRightShadow;
 let wheelsGroup; 
-let wallsGroup; // 新增：墙体组
 let cursors, joystickBase, joystickStick;
 let isTouching = false, touchStartPoint = { x: 0, y: 0 };
 let enemies, bullets, pickups, boomerangs;
@@ -166,14 +173,13 @@ let explosionEmitter;
 let debugGraphics; 
 let hitboxGraphics; 
 
-// --- 全局 Debug 开关 ---
 let isDebugMode = false;
-
-// --- 游戏状态控制 ---
 let gameStarted = false;
 let startLogo, startText;
 
-// 炮塔坐标
+let lastWheelPosLeft = null;
+let lastWheelPosRight = null;
+
 let turretSlotsDef = [
     { x: 0,   y: -106 }, 
     { x: -60, y: -50 }, 
@@ -205,19 +211,24 @@ function preload() {
     this.load.image('playerTex', 'assets/boat.png');
     this.load.spritesheet('wheelAnim', 'assets/wheel_anim.png', { frameWidth: 256, frameHeight: 345 });
     
+    this.load.image('wheelShadowTex', 'assets/wheel_shadow.png');
+
     this.load.spritesheet('gun8dir', 'assets/machinegun.png', { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet('cannon8dir', 'assets/cannon.png', { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet('boomerang8dir', 'assets/boomerang.png', { frameWidth: 128, frameHeight: 128 });
     
     this.load.image('boomerangProjectile', 'assets/boomerang_projectile.png');
+    this.load.image('boomerangShadowTex', 'assets/boomerang_projectile_shadow.png');
+
     this.load.image('bulletTex', 'assets/bullet.png');
     this.load.image('cannonBallTex', 'assets/bomb.png');
     this.load.spritesheet('explosionAnim', 'assets/explosion.png', { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet('zombie_death', 'assets/zombie_death.png', { frameWidth: 128, frameHeight: 128 });
     this.load.image('gameLogo', 'assets/logo.png');
+    this.load.spritesheet('groundTiles', 'assets/tiles.png', { frameWidth: 128, frameHeight: 128 });
 
-    // --- 修改点：加载地面图集 ---
-    this.load.spritesheet('groundTiles', 'assets/tiles.png', { frameWidth: 256, frameHeight: 256 });
+    this.load.image('playerShadowTex', 'assets/shadow.png');
+    this.load.image('trackTex', 'assets/track.png');
 }
 
 function setActionLog(msg) {
@@ -267,14 +278,28 @@ function create() {
     this.physics.world.setBounds(0, 0, 2000, 2000);
     this.cameras.main.setBounds(0, 0, 2000, 2000);
     
-    // --- 修改点：移除网格，添加地面装饰 ---
-    // this.add.grid(...) 已移除
-    createMapDecorations(this);
+    for (let i = 0; i < 16; i++) {
+        const x = Phaser.Math.Between(0, 2000);
+        const y = Phaser.Math.Between(0, 2000);
+        const frame = Phaser.Math.Between(0, 15);
+        const decor = this.add.sprite(x, y, 'groundTiles', frame);
+        decor.setDepth(-1); 
+    }
 
     const WHEEL_SCALE_FIX = 0.6; 
     const finalWheelScale = WHEEL_SCALE_FIX * CONFIG.PLAYER_SCALE;
 
     wheelsGroup = this.physics.add.group();
+
+    wheelLeftShadow = this.add.sprite(1000, 1000, 'wheelShadowTex').setDepth(2);
+    wheelLeftShadow.setFlipX(true);
+    wheelLeftShadow.setScale(finalWheelScale);
+    wheelLeftShadow.alpha = 0.5;
+
+    wheelRightShadow = this.add.sprite(1000, 1000, 'wheelShadowTex').setDepth(2);
+    wheelRightShadow.setFlipX(false);
+    wheelRightShadow.setScale(finalWheelScale);
+    wheelRightShadow.alpha = 0.5;
 
     wheelLeft = this.physics.add.sprite(1000, 1000, 'wheelAnim').setDepth(9);
     wheelLeft.setFlipX(true); 
@@ -288,9 +313,18 @@ function create() {
     wheelRight.body.setSize(180, 280); 
     wheelsGroup.add(wheelRight);
 
+    playerShadow = this.add.sprite(1000, 1000, 'playerShadowTex');
+    playerShadow.setDepth(2);
+    playerShadow.setScale(CONFIG.PLAYER_SCALE); 
+    playerShadow.alpha = 0.5;
+
     player = this.physics.add.sprite(1000, 1000, 'playerTex');
     player.setScale(CONFIG.PLAYER_SCALE);
     player.rotation = -Math.PI / 2; 
+
+    // 初始化轮子位置记录
+    lastWheelPosLeft = new Phaser.Math.Vector2(wheelLeft.x, wheelLeft.y);
+    lastWheelPosRight = new Phaser.Math.Vector2(wheelRight.x, wheelRight.y);
 
     turretSlots = turretSlotsDef.map(slot => ({
         x: slot.x * CONFIG.PLAYER_SCALE,
@@ -349,69 +383,8 @@ function create() {
     this.physics.add.overlap(wheelsGroup, enemies, handleTrample, null, this);
     this.physics.add.overlap(player, pickups, collectPickup, null, this);
 
-    // --- 修改点：添加与墙体的碰撞 ---
-    this.physics.add.collider(player, wallsGroup);
-    this.physics.add.collider(wheelsGroup, wallsGroup);
-    this.physics.add.collider(enemies, wallsGroup);
-
     gameStarted = false;
     createStartScreen(this);
-}
-
-// --- 新增：创建地图装饰和墙体 ---
-function createMapDecorations(scene) {
-    const decorIndices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 14];
-    // 0-3: pebbles, 4-7: debris/gears, 8-10: sand/rocks, 14: bones
-    const wallIndices = [11, 12, 13, 15]; 
-    // 11: big rock, 12,13,15: walls
-
-    // 1. 散布装饰物
-    for (let i = 0; i < 30; i++) {
-        let x = Phaser.Math.Between(100, 1900);
-        let y = Phaser.Math.Between(100, 1900);
-        let idx = Phaser.Utils.Array.GetRandom(decorIndices);
-        
-        let decor = scene.add.sprite(x, y, 'groundTiles', idx);
-        decor.setDepth(0); // 地板层
-        decor.setScale(0.4); // 缩小一点
-        decor.setRotation(Math.random() * Math.PI * 2);
-    }
-
-    // 2. 随机生成2个墙体
-    wallsGroup = scene.physics.add.staticGroup();
-    let placedWalls = 0;
-    
-    // 简单的随机选取2个不同的墙体类型
-    const pickedWallTypes = Phaser.Utils.Array.Shuffle([...wallIndices]).slice(0, 2);
-
-    while (placedWalls < 2) {
-        let x = Phaser.Math.Between(200, 1800);
-        let y = Phaser.Math.Between(200, 1800);
-        
-        // 简单避开出生点 (1000, 1000)
-        if (Phaser.Math.Distance.Between(x, y, 1000, 1000) > 400) {
-            let wallIdx = pickedWallTypes[placedWalls];
-            let wall = wallsGroup.create(x, y, 'groundTiles', wallIdx);
-            
-            wall.setDepth(8); // 墙体层级 (低于玩家，高于地面)
-            wall.setScale(0.6); // 墙体缩放
-
-            // 设置碰撞体：原图256x256，中心点在中间
-            // 我们希望碰撞体只在底部，模拟伪3D
-            const w = 256 * 0.6;
-            const h = 256 * 0.6;
-            // 碰撞体大小：宽 80%，高 40%
-            const bodyW = w * 0.8;
-            const bodyH = h * 0.4;
-            
-            // setBodySize 和 setOffset 是相对于原始尺寸的（如果是static group，直接设置body属性比较稳妥）
-            // 对于StaticBody，我们需要在 refreshBody 之前设置
-            wall.body.setSize(256 * 0.8, 256 * 0.4);
-            wall.body.setOffset(256 * 0.1, 256 * 0.6); // 偏移到底部
-            
-            placedWalls++;
-        }
-    }
 }
 
 function createStartScreen(scene) {
@@ -520,10 +493,11 @@ function setupDomEvents() {
         const newBtn = restartBtn.cloneNode(true);
         restartBtn.parentNode.replaceChild(newBtn, restartBtn);
         newBtn.addEventListener('click', () => {
-            const nameInput = document.getElementById('player-name');
-            const playerName = nameInput ? nameInput.value : "Survivor";
-            console.log(`Saving score for ${playerName}: ${score}`);
-            document.getElementById('game-over-ui').style.display = 'none';
+            const nameInput = document.getElementById('player-name-input');
+            if (nameInput && nameInput.value.trim() !== "") {
+                localStorage.setItem('zr_player_name', nameInput.value.trim());
+            }
+
             location.reload(); 
         });
     }
@@ -542,6 +516,31 @@ function update(time, delta) {
     handlePlayerMovement(this, time);
     handlePickupsMagnet(this);
 
+    // --- 修改点：使用插值生成连续车辙 ---
+    updateWheelTrack(this, wheelLeft, lastWheelPosLeft);
+    updateWheelTrack(this, wheelRight, lastWheelPosRight);
+
+    // 更新僵尸阴影位置
+    enemies.getChildren().forEach(enemy => {
+        if (!enemy.active) return;
+        if (enemy.shadow && enemy.shadow.active) {
+            enemy.shadow.setPosition(enemy.x, enemy.y + 20); 
+        }
+        
+        if (enemy.isDying) return;
+
+        const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, player.x, player.y);
+        const deg = Phaser.Math.RadToDeg(angle);
+        if (deg > -45 && deg <= 45) enemy.play('z_right', true);
+        else if (deg > 45 && deg <= 135) enemy.play('z_down', true);
+        else if (deg > -135 && deg <= -45) enemy.play('z_up', true);
+        else enemy.play('z_left', true);
+
+        if (enemy.stunUntil && time < enemy.stunUntil) { } else {
+            this.physics.moveTo(enemy, player.x, player.y, enemy.speed);
+        }
+    });
+
     if (isDebugMode) {
         if (hitboxGraphics) {
             hitboxGraphics.clear();
@@ -552,42 +551,51 @@ function update(time, delta) {
             hitboxGraphics.fillStyle(0x00FFFF, 0.6);
             if (wheelLeft.body) hitboxGraphics.fillRect(wheelLeft.body.x, wheelLeft.body.y, wheelLeft.body.width, wheelLeft.body.height);
             if (wheelRight.body) hitboxGraphics.fillRect(wheelRight.body.x, wheelRight.body.y, wheelRight.body.width, wheelRight.body.height);
-            
-            // --- 绘制墙体碰撞框 ---
-            hitboxGraphics.fillStyle(0xFF0000, 0.5); // 红色半透明
-            wallsGroup.getChildren().forEach(wall => {
-                const b = wall.body;
-                hitboxGraphics.fillRect(b.x, b.y, b.width, b.height);
-            });
         }
     } else {
         if (hitboxGraphics) hitboxGraphics.clear();
         if (debugGraphics) debugGraphics.clear();
     }
 
-    const pX = player.x;
-    const pY = player.y;
-    
-    enemies.getChildren().forEach(enemy => {
-        if (!enemy.active) return;
-        if (enemy.isDying) return;
-
-        const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, pX, pY);
-        const deg = Phaser.Math.RadToDeg(angle);
-        if (deg > -45 && deg <= 45) enemy.play('z_right', true);
-        else if (deg > 45 && deg <= 135) enemy.play('z_down', true);
-        else if (deg > -135 && deg <= -45) enemy.play('z_up', true);
-        else enemy.play('z_left', true);
-
-        if (enemy.stunUntil && time < enemy.stunUntil) { } else {
-            this.physics.moveTo(enemy, pX, pY, enemy.speed);
-        }
-    });
-
     hpText.setText(`HP: ${Math.floor(hp)}`);
     scoreText.setText(`SCORE: ${score}`);
     happyText.setText(`HAPPY: ${happyCount}`);
     updateDebugInfo();
+}
+
+// --- 修改点：插值生成车辙逻辑 ---
+function updateWheelTrack(scene, wheel, lastPosVec) {
+    const dist = Phaser.Math.Distance.Between(lastPosVec.x, lastPosVec.y, wheel.x, wheel.y);
+    const step = 8; // 生成间距
+
+    if (dist > step) {
+        let count = Math.floor(dist / step);
+        const angle = Math.atan2(wheel.y - lastPosVec.y, wheel.x - lastPosVec.x);
+        
+        for (let i = 0; i < count; i++) {
+            // 计算插值坐标：从上一个点向前步进
+            lastPosVec.x += Math.cos(angle) * step;
+            lastPosVec.y += Math.sin(angle) * step;
+            
+            spawnTireTrack(scene, lastPosVec.x, lastPosVec.y, angle);
+        }
+    }
+}
+
+function spawnTireTrack(scene, x, y, angleRad) {
+    const track = scene.add.sprite(x, y, 'trackTex');
+    track.setDepth(0); 
+    // 图片默认竖直，所以 + 90度
+    track.setRotation(angleRad + Math.PI / 2); 
+    track.setScale(1.2); 
+    track.alpha = 0.6; 
+
+    scene.tweens.add({
+        targets: track,
+        alpha: 0,
+        duration: 10000, // 10秒淡出
+        onComplete: () => track.destroy()
+    });
 }
 
 function updateDebugInfo() {
@@ -604,6 +612,11 @@ function updateDebugInfo() {
 function handlePickupsMagnet(scene) {
     pickups.getChildren().forEach(drop => {
         if (!drop.active) return;
+        
+        if (drop.shadow && drop.shadow.active) {
+            drop.shadow.setPosition(drop.x, drop.y + 25);
+        }
+
         if (!drop.canMagnet) return;
         const dist = Phaser.Math.Distance.Between(drop.x, drop.y, player.x, player.y);
         if (dist <= CONFIG.MAGNET_DIST && !drop.isMagneting) {
@@ -654,6 +667,14 @@ function updateVisuals(time) {
     wheelRight.y = player.y + ((suspensionOffset) * sinA + (sideDist) * cosA);
     wheelRight.rotation = angle + Math.PI / 2;
 
+    wheelLeftShadow.x = wheelLeft.x;
+    wheelLeftShadow.y = wheelLeft.y + 10;
+    wheelLeftShadow.rotation = wheelLeft.rotation;
+
+    wheelRightShadow.x = wheelRight.x;
+    wheelRightShadow.y = wheelRight.y + 10;
+    wheelRightShadow.rotation = wheelRight.rotation;
+
     const isHorizontal = Math.abs(Math.sin(wheelLeft.rotation)) > 0.707;
     
     const wVert = 180;
@@ -672,6 +693,11 @@ function updateVisuals(time) {
     }
     
     player.rotation = isMoving ? Math.sin(time * 0.025) * 0.03 : 0;
+    
+    playerShadow.x = player.x; 
+    playerShadow.y = player.y + 10; 
+    playerShadow.rotation = player.rotation; 
+
     const rads = player.rotation;
     const cR = Math.cos(rads);
     const sR = Math.sin(rads);
@@ -745,6 +771,12 @@ function updateVisuals(time) {
         b.x = player.x + Math.cos(currentAngle) * radius;
         b.y = player.y + Math.sin(currentAngle) * radius;
         b.rotation += 0.4; 
+
+        // --- 修改点：更新回旋镖阴影位置 ---
+        if (b.shadowSprite) {
+            b.shadowSprite.setPosition(b.x, b.y + 30);
+            b.shadowSprite.setRotation(b.rotation);
+        }
     });
 }
 
@@ -785,6 +817,11 @@ function createOneEnemy(scene, x, y) {
         enemy.stunUntil = 0; 
         enemy.setScale(0.4);
         enemy.isDying = false; 
+
+        enemy.shadow = scene.add.sprite(x, y, 'shadowTex');
+        enemy.shadow.setDepth(2);
+        enemy.shadow.setScale(1.2, 0.4); 
+        enemy.shadow.alpha = 0.4;
     }
 }
 
@@ -837,22 +874,17 @@ function spawnBoomerangProjectiles(scene) {
     const radiusMultipliers = [0.7, 1.0, 1.3];
     for(let i=0; i<3; i++) {
         let b = boomerangs.create(player.x, player.y, 'boomerangProjectile');
-        b.setDepth(20); b.setCircle(20); 
+        b.setDepth(20); b.setCircle(45); 
         b.phaseOffset = baseOffset + (i * (Math.PI * 2 / 3));
         b.orbitRadius = CONFIG.BOOMERANG_RADIUS * radiusMultipliers[i]; 
         b.setScale(1.2); 
 
-        scene.add.particles(0, 0, 'trailSquare', {
-            follow: b,
-            speed: 0,
-            lifespan: 1000,          
-            scale: { start: 1, end: 0 }, 
-            alpha: 1,                
-            rotate: { start: 0, end: 90 }, 
-            quantity: 1,
-            frequency: 20, 
-            tint: { start: 0xFFFF00, end: 0xFF4500 }
-        }).setDepth(8); 
+        // --- 修改点：创建回旋镖阴影 ---
+        let shadow = scene.add.sprite(0, 0, 'boomerangShadowTex');
+        shadow.setDepth(8);
+        shadow.setScale(1.2);
+        shadow.setAlpha(0.5);
+        b.shadowSprite = shadow;
     }
 }
 
@@ -870,6 +902,8 @@ function fireTurrets() {
                 this.physics.velocityFromRotation(tInfo.targetAngle, CONFIG.BULLET_SPEED, b.body.velocity);
                 b.setScale(0.25);
                 b.body.updateFromGameObject();
+
+                // --- 修改点：移除子弹阴影 ---
 
                 this.time.delayedCall(1500, () => { if(b.active) b.setActive(false).setVisible(false).body.enable = false; });
             }
@@ -890,6 +924,8 @@ function fireCannonBall(tInfo) {
     ball.setDepth(25);
     ball.setScale(0.5); 
     scene.tweens.add({ targets: ball, angle: 720, duration: 750 }); 
+
+    // --- 修改点：移除炸弹阴影 ---
 
     const target = tInfo.targetEntity;
     const tx = target.x; const ty = target.y;
@@ -987,7 +1023,7 @@ function hitEnemyByBoomerang(boomerang, enemy) {
 }
 
 function applyDamageToEnemy(enemy, dmg) {
-    if (enemy.isDying) return; // 已死的不再受伤
+    if (enemy.isDying) return; 
 
     enemy.hp -= dmg;
     enemy.setTintFill(0xffffff);
@@ -998,11 +1034,16 @@ function applyDamageToEnemy(enemy, dmg) {
 
 function handleTrample(obj, enemy) {
     if (gameOver || !enemy.active || enemy.isDying) return;
-    hp -= CONFIG.HP_TRAMPLE_COST;
-    showFloatText(this, player.x, player.y - 60, `-${CONFIG.HP_TRAMPLE_COST}`, '#ff0000');
+    
+    if (!isDebugMode) {
+        hp -= CONFIG.HP_TRAMPLE_COST;
+        showFloatText(this, player.x, player.y - 60, `-${CONFIG.HP_TRAMPLE_COST}`, '#ff0000');
+    }
+
     this.cameras.main.shake(100, 0.005);
     killEnemy(enemy);
-    if (hp <= 0) doGameOver(this, false);
+    
+    if (!isDebugMode && hp <= 0) doGameOver(this, false);
 }
 
 function killEnemy(enemy) {
@@ -1011,6 +1052,8 @@ function killEnemy(enemy) {
     enemy.isDying = true; 
     enemy.body.enable = false; 
     enemy.setVelocity(0); 
+
+    if (enemy.shadow) enemy.shadow.destroy();
 
     explosionEmitter.emitParticleAt(enemy.x, enemy.y, 6);
     
@@ -1143,6 +1186,13 @@ function dropItem(scene, x, y, type) {
         scene.tweens.add({ targets: sprite, y: y - 10, duration: 500, yoyo: true, repeat: -1 });
     }
 
+    if (type === 'TURRET') {
+        sprite.shadow = scene.add.sprite(x, y, 'shadowTex');
+        sprite.shadow.setDepth(1); 
+        sprite.shadow.setScale(1.9); 
+        sprite.shadow.alpha = 0.4;
+    }
+
     sprite.dropType = type;
     sprite.isMagneting = false; sprite.canMagnet = false;
     scene.time.delayedCall(1000, () => { if(sprite.active) sprite.canMagnet = true; });
@@ -1182,6 +1232,8 @@ function collectPickup(player, drop) {
             score += 500;
         }
     }
+    
+    if (drop.shadow) drop.shadow.destroy();
     drop.destroy();
 }
 
@@ -1193,6 +1245,11 @@ function showFloatText(scene, x, y, msg, color) {
 function generateTextures(scene) {
     const g = scene.make.graphics({x:0, y:0, add:false});
     
+    g.clear();
+    g.fillStyle(0x000000, 1);
+    g.fillCircle(16, 16, 14); 
+    g.generateTexture('shadowTex', 32, 32);
+
     g.clear(); g.fillStyle(0xFFFFFF, 1); g.fillRect(0, 0, 16, 16); g.generateTexture('trailSquare', 16, 16);
 
     g.clear(); g.fillStyle(COLORS.TURRET, 1); g.fillTriangle(24, 12, 0, 0, 0, 24); g.lineStyle(1, 0x000000); g.strokeTriangle(24, 12, 0, 0, 0, 24); g.generateTexture('turretTex', 24, 24);
@@ -1274,4 +1331,4 @@ function doGameOver(scene, win) {
 }
 </script>
 </body>
-</html>```
+</html>
