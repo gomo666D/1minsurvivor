@@ -78,7 +78,29 @@
             #game-wrapper { display: none; }
             #rotate-msg { display: block; text-align: center; font-size: 20px; margin-top: 20%; color: #fff; }
         }
-    </style>
+    
+        button#submit-score-btn {
+            padding: 10px 30px; font-size: 18px; font-weight: bold;
+            background: #00C853; color: white; border: none; border-radius: 5px;
+            cursor: pointer; transition: transform 0.1s; margin-top: 5px;
+        }
+        button#submit-score-btn:active { transform: scale(0.95); }
+
+        #lb-status { color:#bbb; font-size:14px; margin: 6px 0 10px; min-height: 18px; }
+        #lb-top10 { width: 90%; max-width: 420px; display:flex; flex-direction:column; gap:8px; padding-bottom: 20px; }
+        .lb-item {
+            display:flex; justify-content:space-between; align-items:baseline;
+            padding: 10px 12px; border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(0,0,0,0.25);
+            font-size: 16px;
+        }
+        .lb-left { display:flex; gap:10px; align-items:baseline; overflow:hidden; }
+        .lb-rank { min-width: 44px; color:#FFD700; font-weight: 900; }
+        .lb-name { color:#fff; font-weight: 800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 220px; }
+        .lb-score { color:#FFD700; font-weight: 900; }
+
+</style>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
 </head>
 <body>
@@ -102,11 +124,13 @@
             <div id="input-area">
                 <input type="text" id="player-name-input" placeholder="Enter Your Name" maxlength="12">
             </div>
+            <button id="submit-score-btn">SUBMIT SCORE</button>
             <button id="restart-btn">RESTART</button>
         </div>
         <div id="leaderboard-section">
             <h2 style="color: #FFD700; border-bottom: 1px solid #666; width: 80%; padding-bottom: 10px;">GLOBAL RANKING</h2>
-            <div id="lb-placeholder-text">Checking server...<br>(Leaderboard Area 60%)</div>
+            <div id="lb-status">Checking server...</div>
+            <div id="lb-top10"></div>
         </div>
     </div>
 </div>
@@ -1328,7 +1352,179 @@ function doGameOver(scene, win) {
     goLetters.innerText = letterStr;
     if (win) { goTitle.innerText = "HAPPY NEW YEAR!"; goTitle.style.color = "#FFD700"; } else { goTitle.innerText = "GAME OVER"; goTitle.style.color = "#FF0000"; }
     overlay.style.display = 'flex';
+    // Leaderboard (Firebase) on game over
+    try {
+        window.LeaderboardAPI?.open?.({ score, nameInputId: 'player-name-input' });
+    } catch (e) {}
+
 }
 </script>
+
+<script type="module">
+  // Firebase Firestore Leaderboard (Top 10 + Submit)
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+  // TODO: Replace with YOUR firebaseConfig from Firebase Console (Web App)
+  const firebaseConfig = {
+      apiKey: "AIzaSyBIOQqxS5fCFMLhkxXM4gQkfiANpLrNUV4",
+      authDomain: "minsurvivor-3c2d1.firebaseapp.com",
+      projectId: "minsurvivor-3c2d1",
+      storageBucket: "minsurvivor-3c2d1.firebasestorage.app",
+      messagingSenderId: "193473399866",
+      appId: "1:193473399866:web:58359521495f4ebcddb903",
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const statusEl = document.getElementById("lb-status");
+  const listEl = document.getElementById("lb-top10");
+  const submitBtn = document.getElementById("submit-score-btn");
+
+  function setStatus(msg) { if (statusEl) statusEl.textContent = msg || ""; }
+
+  function sanitizeName(name) {
+    return String(name || "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .replace(/[^\w \-\u4e00-\u9fff]/g, "")
+      .slice(0, 12);
+  }
+
+  function renderTop10(rows) {
+    if (!listEl) return;
+    listEl.innerHTML = "";
+
+    if (!rows || rows.length === 0) {
+      const d = document.createElement("div");
+      d.style.color = "#888";
+      d.style.fontStyle = "italic";
+      d.textContent = "No scores yet.";
+      listEl.appendChild(d);
+      return;
+    }
+
+    rows.forEach((r, i) => {
+      const item = document.createElement("div");
+      item.className = "lb-item";
+
+      const left = document.createElement("div");
+      left.className = "lb-left";
+
+      const rank = document.createElement("div");
+      rank.className = "lb-rank";
+      rank.textContent = `#${i + 1}`;
+
+      const name = document.createElement("div");
+      name.className = "lb-name";
+      name.textContent = r.nickname || "???";
+
+      left.appendChild(rank);
+      left.appendChild(name);
+
+      const score = document.createElement("div");
+      score.className = "lb-score";
+      score.textContent = String(r.score ?? 0);
+
+      item.appendChild(left);
+      item.appendChild(score);
+
+      listEl.appendChild(item);
+    });
+  }
+
+  async function loadTop10() {
+    const q = query(
+      collection(db, "scores"),
+      orderBy("score", "desc"),
+      limit(10)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(d => d.data());
+  }
+
+  async function refreshTop10() {
+    try {
+      setStatus("Loading Top 10...");
+      const rows = await loadTop10();
+      renderTop10(rows);
+      setStatus("");
+    } catch (e) {
+      console.warn(e);
+      setStatus("Failed to load leaderboard (check Firestore rules / config).");
+    }
+  }
+
+  async function submitScore(nickname, score) {
+    const name = sanitizeName(nickname);
+    const sc = Math.max(0, Math.floor(Number(score) || 0));
+    if (!name) throw new Error("Please enter a nickname.");
+    await addDoc(collection(db, "scores"), {
+      nickname: name,
+      score: sc,
+      createdAt: serverTimestamp()
+    });
+  }
+
+  function prefillName(inputEl) {
+    try {
+      const saved = localStorage.getItem("zr_player_name") || localStorage.getItem("lb_name") || "";
+      if (saved && inputEl && !inputEl.value) inputEl.value = saved;
+    } catch {}
+  }
+
+  window.LeaderboardAPI = {
+    async open({ score, nameInputId }) {
+      const inputEl = document.getElementById(nameInputId);
+      prefillName(inputEl);
+      window.__GAME_SCORE__ = score;
+      await refreshTop10();
+    },
+    refreshTop10
+  };
+
+  if (submitBtn) {
+    submitBtn.addEventListener("click", async () => {
+      try {
+        submitBtn.disabled = true;
+        setStatus("Submitting...");
+
+        const inputEl = document.getElementById("player-name-input");
+        const name = sanitizeName(inputEl?.value);
+        if (inputEl) inputEl.value = name;
+
+        try {
+          if (name) localStorage.setItem("zr_player_name", name);
+          if (name) localStorage.setItem("lb_name", name);
+        } catch {}
+
+        const sc = window.__GAME_SCORE__ ?? 0;
+        await submitScore(name, sc);
+
+        setStatus("Submitted! Refreshing Top 10...");
+        await refreshTop10();
+        setStatus("Done.");
+      } catch (e) {
+        console.warn(e);
+        setStatus(e?.message || "Submit failed.");
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  }
+
+  const nameInput = document.getElementById("player-name-input");
+  if (nameInput) {
+    nameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submitBtn?.click();
+    });
+  }
+
+  refreshTop10();
+</script>
+
 </body>
 </html>
