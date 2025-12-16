@@ -1360,170 +1360,314 @@ function doGameOver(scene, win) {
 }
 </script>
 
-<script type="module">
-  // Firebase Firestore Leaderboard (Top 10 + Submit)
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-  import {
-    getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp
-  } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
-  // TODO: Replace with YOUR firebaseConfig from Firebase Console (Web App)
-  const firebaseConfig = {
+<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore-compat.js"></script>
+<script>
+  // Firebase Firestore Leaderboard (Compat build, no ES module imports)
+  (function () {
+    const firebaseConfig = {
       apiKey: "AIzaSyBIOQqxS5fCFMLhkxXM4gQkfiANpLrNUV4",
       authDomain: "minsurvivor-3c2d1.firebaseapp.com",
       projectId: "minsurvivor-3c2d1",
       storageBucket: "minsurvivor-3c2d1.firebasestorage.app",
       messagingSenderId: "193473399866",
-      appId: "1:193473399866:web:58359521495f4ebcddb903",
-  };
+      appId: "1:193473399866:web:58359521495f4ebcddb903"
+    };
 
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+    function $(id){ return document.getElementById(id); }
 
-  const statusEl = document.getElementById("lb-status");
-  const listEl = document.getElementById("lb-top10");
-  const submitBtn = document.getElementById("submit-score-btn");
-
-  function setStatus(msg) { if (statusEl) statusEl.textContent = msg || ""; }
-
-  function sanitizeName(name) {
-    return String(name || "")
-      .trim()
-      .replace(/\s+/g, " ")
-      .replace(/[^\w \-\u4e00-\u9fff]/g, "")
-      .slice(0, 12);
-  }
-
-  function renderTop10(rows) {
-    if (!listEl) return;
-    listEl.innerHTML = "";
-
-    if (!rows || rows.length === 0) {
-      const d = document.createElement("div");
-      d.style.color = "#888";
-      d.style.fontStyle = "italic";
-      d.textContent = "No scores yet.";
-      listEl.appendChild(d);
-      return;
+    // UI elements (support both new and legacy ids)
+    function getStatusEl(){ return $("lb-status") || $("lb-placeholder-text"); }
+    function getListEl(){
+      let el = $("lb-top10");
+      if (!el) {
+        const section = $("leaderboard-section");
+        if (section) {
+          el = document.createElement("div");
+          el.id = "lb-top10";
+          section.appendChild(el);
+        }
+      }
+      return el;
     }
 
-    rows.forEach((r, i) => {
-      const item = document.createElement("div");
-      item.className = "lb-item";
-
-      const left = document.createElement("div");
-      left.className = "lb-left";
-
-      const rank = document.createElement("div");
-      rank.className = "lb-rank";
-      rank.textContent = `#${i + 1}`;
-
-      const name = document.createElement("div");
-      name.className = "lb-name";
-      name.textContent = r.nickname || "???";
-
-      left.appendChild(rank);
-      left.appendChild(name);
-
-      const score = document.createElement("div");
-      score.className = "lb-score";
-      score.textContent = String(r.score ?? 0);
-
-      item.appendChild(left);
-      item.appendChild(score);
-
-      listEl.appendChild(item);
-    });
-  }
-
-  async function loadTop10() {
-    const q = query(
-      collection(db, "scores"),
-      orderBy("score", "desc"),
-      limit(10)
-    );
-    const snap = await getDocs(q);
-    return snap.docs.map(d => d.data());
-  }
-
-  async function refreshTop10() {
-    try {
-      setStatus("Loading Top 10...");
-      const rows = await loadTop10();
-      renderTop10(rows);
-      setStatus("");
-    } catch (e) {
-      console.warn(e);
-      setStatus("Failed to load leaderboard (check Firestore rules / config).");
+    function setStatus(msg) {
+      const el = getStatusEl();
+      if (!el) return;
+      if (el.id === "lb-placeholder-text") el.innerHTML = String(msg || "").replace(/\\n/g, "<br>");
+      else el.textContent = msg || "";
     }
-  }
 
-  async function submitScore(nickname, score) {
-    const name = sanitizeName(nickname);
-    const sc = Math.max(0, Math.floor(Number(score) || 0));
-    if (!name) throw new Error("Please enter a nickname.");
-    await addDoc(collection(db, "scores"), {
-      nickname: name,
-      score: sc,
-      createdAt: serverTimestamp()
-    });
-  }
+    function sanitizeName(name) {
+      return String(name || "")
+        .trim()
+        .replace(/\\s+/g, " ")
+        .replace(/[^\\w \\-\\u4e00-\\u9fff]/g, "")
+        .slice(0, 12);
+    }
 
-  function prefillName(inputEl) {
-    try {
-      const saved = localStorage.getItem("zr_player_name") || localStorage.getItem("lb_name") || "";
-      if (saved && inputEl && !inputEl.value) inputEl.value = saved;
-    } catch {}
-  }
+    function isNameLocked() {
+      try { return localStorage.getItem("zr_name_locked") === "1"; } catch (e) { return false; }
+    }
 
-  window.LeaderboardAPI = {
-    async open({ score, nameInputId }) {
-      const inputEl = document.getElementById(nameInputId);
-      prefillName(inputEl);
-      window.__GAME_SCORE__ = score;
-      await refreshTop10();
-    },
-    refreshTop10
-  };
-
-  if (submitBtn) {
-    submitBtn.addEventListener("click", async () => {
+    function lockName(name) {
       try {
-        submitBtn.disabled = true;
-        setStatus("Submitting...");
+        if (name) {
+          localStorage.setItem("zr_player_name", name);
+          localStorage.setItem("lb_name", name);
+          localStorage.setItem("zr_name_locked", "1");
+        }
+      } catch (e) {}
+    }
 
-        const inputEl = document.getElementById("player-name-input");
-        const name = sanitizeName(inputEl?.value);
-        if (inputEl) inputEl.value = name;
+    function applyNameLockUI(inputEl) {
+      if (!inputEl) return;
+      const locked = isNameLocked();
+      if (locked) {
+        inputEl.readOnly = true;
+        inputEl.disabled = true;
+        inputEl.style.opacity = "0.75";
+        inputEl.style.cursor = "not-allowed";
+      } else {
+        inputEl.readOnly = false;
+        inputEl.disabled = false;
+        inputEl.style.opacity = "1";
+        inputEl.style.cursor = "text";
+      }
+    }
 
-        try {
-          if (name) localStorage.setItem("zr_player_name", name);
-          if (name) localStorage.setItem("lb_name", name);
-        } catch {}
+    function prefillName(inputEl) {
+      try {
+        const saved = localStorage.getItem("zr_player_name") || localStorage.getItem("lb_name") || "";
+        if (saved && inputEl) inputEl.value = saved;
+      } catch (e) {}
+      applyNameLockUI(inputEl);
+    }
 
-        const sc = window.__GAME_SCORE__ ?? 0;
-        await submitScore(name, sc);
+    function ensureListStyles() {
+      const listEl = getListEl();
+      if (!listEl) return;
+      // If you didn't inject the CSS blocks, add minimal inline styling here.
+      if (!listEl.classList.contains("lb-ready")) {
+        listEl.classList.add("lb-ready");
+        listEl.style.width = "90%";
+        listEl.style.maxWidth = "420px";
+        listEl.style.display = "flex";
+        listEl.style.flexDirection = "column";
+        listEl.style.gap = "8px";
+        listEl.style.paddingBottom = "20px";
+      }
+    }
 
-        setStatus("Submitted! Refreshing Top 10...");
-        await refreshTop10();
-        setStatus("Done.");
+    function renderTop10(rows) {
+      const listEl = getListEl();
+      if (!listEl) return;
+      ensureListStyles();
+      listEl.innerHTML = "";
+
+      if (!rows || rows.length === 0) {
+        const d = document.createElement("div");
+        d.style.color = "#888";
+        d.style.fontStyle = "italic";
+        d.textContent = "No scores yet.";
+        listEl.appendChild(d);
+        return;
+      }
+
+      rows.forEach((r, i) => {
+        const item = document.createElement("div");
+        item.style.display = "flex";
+        item.style.justifyContent = "space-between";
+        item.style.alignItems = "baseline";
+        item.style.padding = "10px 12px";
+        item.style.borderRadius = "10px";
+        item.style.border = "1px solid rgba(255,255,255,0.18)";
+        item.style.background = "rgba(0,0,0,0.25)";
+        item.style.fontSize = "16px";
+
+        const left = document.createElement("div");
+        left.style.display = "flex";
+        left.style.gap = "10px";
+        left.style.alignItems = "baseline";
+        left.style.overflow = "hidden";
+
+        const rank = document.createElement("div");
+        rank.style.minWidth = "44px";
+        rank.style.color = "#FFD700";
+        rank.style.fontWeight = "900";
+        rank.textContent = "#"+(i+1);
+
+        const name = document.createElement("div");
+        name.style.color = "#fff";
+        name.style.fontWeight = "800";
+        name.style.whiteSpace = "nowrap";
+        name.style.overflow = "hidden";
+        name.style.textOverflow = "ellipsis";
+        name.style.maxWidth = "220px";
+        name.textContent = r.nickname || "???";
+
+        left.appendChild(rank);
+        left.appendChild(name);
+
+        const score = document.createElement("div");
+        score.style.color = "#FFD700";
+        score.style.fontWeight = "900";
+        score.textContent = String(r.score ?? 0);
+
+        item.appendChild(left);
+        item.appendChild(score);
+        listEl.appendChild(item);
+      });
+    }
+
+    // Init Firebase (compat)
+    try {
+      firebase.initializeApp(firebaseConfig);
+    } catch (e) {
+      // Ignore "already exists"
+    }
+    const db = firebase.firestore();
+
+    async function loadTop10() {
+      // Requires composite index for score desc + createdAt desc
+      const snap = await db.collection("scores")
+        .orderBy("score", "desc")
+        .orderBy("updatedAt", "desc")
+        .limit(10)
+        .get();
+
+      return snap.docs.map(d => d.data());
+    }
+
+    async function refreshTop10() {
+      try {
+        setStatus("Loading Top 10...");
+        const rows = await loadTop10();
+        renderTop10(rows);
+        setStatus("");
       } catch (e) {
         console.warn(e);
-        setStatus(e?.message || "Submit failed.");
-      } finally {
-        submitBtn.disabled = false;
+        setStatus("Leaderboard error: " + (e.message || e));
       }
-    });
-  }
+    }
 
-  const nameInput = document.getElementById("player-name-input");
-  if (nameInput) {
-    nameInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") submitBtn?.click();
-    });
-  }
+    async function submitScore(nickname, score) {
+      const name = sanitizeName(nickname);
+      const sc = Math.max(0, Math.floor(Number(score) || 0));
+      if (!name) throw new Error("Please enter a nickname.");
 
-  refreshTop10();
+      // Same-name only keeps the highest score:
+      // Use document id = nickname, update only when new score is higher.
+      const ref = db.collection("scores").doc(name);
+
+      return await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+
+        if (!snap.exists) {
+          tx.set(ref, {
+            nickname: name,
+            score: sc,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          return { written: true, reason: "first", prevScore: 0 };
+        }
+
+        const prev = snap.data() || {};
+        const prevScore = Number(prev.score || 0);
+
+        if (sc > prevScore) {
+          tx.set(ref, {
+            nickname: name,
+            score: sc,
+            createdAt: prev.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          return { written: true, reason: "improved", prevScore };
+        }
+
+        return { written: false, reason: "not_higher", prevScore };
+      });
+    }
+
+    // Bind submit button
+    function bindUI() {
+      const submitBtn = $("submit-score-btn");
+      const nameInput = $("player-name-input");
+      if (nameInput) {
+        nameInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && submitBtn) submitBtn.click();
+        });
+      }
+      if (submitBtn) {
+        submitBtn.addEventListener("click", async () => {
+          try {
+            submitBtn.disabled = true;
+            setStatus("Submitting...");
+
+            const inputEl = $("player-name-input");
+            const name = sanitizeName(inputEl ? inputEl.value : "");
+            if (inputEl) inputEl.value = name;
+
+            // Keep old name if locked
+            if (isNameLocked()) {
+              try {
+                const saved = localStorage.getItem("zr_player_name") || localStorage.getItem("lb_name") || "";
+                if (saved) {
+                  if (inputEl) inputEl.value = saved;
+                }
+              } catch (e) {}
+            }
+
+            const finalName = sanitizeName(inputEl ? inputEl.value : name);
+
+            const sc = window.__GAME_SCORE__ ?? 0;
+            const result = await submitScore(finalName, sc);
+
+            // Lock name after first successful submit (or any attempt)
+            lockName(finalName);
+            prefillName(inputEl);
+
+            if (result && result.written) {
+              setStatus("Saved! Refreshing Top 10...");
+              await refreshTop10();
+              setStatus("Done.");
+            } else {
+              setStatus(`Not saved (best: ${result?.prevScore ?? 0}).`);
+            }
+          } catch (e) {
+            console.warn(e);
+            setStatus(e.message || "Submit failed.");
+          } finally {
+            if (submitBtn) submitBtn.disabled = false;
+          }
+        });
+      }
+    }
+
+    // Public API for game to call at Game Over
+    window.LeaderboardAPI = {
+      open: async function ({ score, nameInputId }) {
+        const inputEl = document.getElementById(nameInputId);
+        prefillName(inputEl);
+        window.__GAME_SCORE__ = score;
+        await refreshTop10();
+      },
+      refreshTop10
+    };
+
+    // Bind once DOM is ready
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", bindUI);
+    } else {
+      bindUI();
+    }
+
+    // If you want it to attempt loading immediately:
+    refreshTop10();
+    setStatus("Checking server...");
+  })();
 </script>
 
 </body>
