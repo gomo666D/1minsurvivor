@@ -112,22 +112,18 @@
         #lb-top10 { 
             width: 95%; max-width: 420px; 
             flex: 1; overflow-y: auto; 
-            display:flex; flex-direction:column; gap: 4px; padding-right: 2px;
+            display:flex; flex-direction:column; gap: 6px; padding-right: 2px;
         }
 
         /* 行样式 */
         .lb-item {
-
-            display:flex; justify-content:space-between; align-items:center; /* 修改1：baseline 改为 center */
-            padding: 12px 14px; /* 修改2：增加内边距 */
-            line-height: 1.5; /* 修改3：增加行高防止切字 */
-            border-radius: 6px;
+            display:flex; justify-content:space-between; align-items:center;
+            padding: 12px 14px; border-radius: 6px;
             border: 1px solid rgba(255,255,255,0.1);
             background: rgba(0,0,0,0.4);
-            font-size: 12px; 
-            flex-shrink: 0;
+            font-size: 12px; line-height: 1.5; flex-shrink: 0;
         }
-        .lb-left { display:flex; gap:8px; align-items:baseline; overflow:hidden; }
+        .lb-left { display:flex; gap:10px; align-items:center; overflow:hidden; }
         .lb-rank { min-width: 32px; color:#FFD700; font-weight: 900; }
         .lb-name { 
             color:#fff; font-weight: 800; 
@@ -139,7 +135,7 @@
         /* 我的排名 */
         #lb-my-rank-container {
             width: 95%; max-width: 420px; flex-shrink: 0;
-            margin-bottom: 10px; min-height: 36px;
+            margin-bottom: 12px; min-height: 40px;
         }
         .my-rank-row {
             background: rgba(184, 134, 11, 0.7) !important;
@@ -201,6 +197,7 @@
     <button id="debug-btn">DEBUG: OFF</button>
 
     <div id="game-over-ui">
+        <!-- 上部 -->
         <div id="go-top-section">
             <h1 id="go-title"></h1>
             <div id="happy-sprite-text"></div>
@@ -363,7 +360,10 @@ let damagePerShot = 1;
 let droppedCounts = { powerup: 0, heart: 0 };
 let comboCount = 0;
 let comboTimerEvent = null;
+// UI Elements
 let timeText, hpText, scoreText, highScoreText, letterText, fpsText, debugText;
+let clockIcon, hpIcon;
+
 let hnyHudSprites = null;
 let comboText, comboScaleTween; 
 let gameOver = false;
@@ -397,6 +397,9 @@ function preload() {
     this.load.spritesheet('groundTiles', 'assets/tiles.png', { frameWidth: 128, frameHeight: 128 });
     this.load.image('playerShadowTex', 'assets/shadow.png');
     this.load.image('trackTex', 'assets/track.png');
+    
+    // Add custom clock icon (or auto-generated later if not found)
+    // this.load.image('clockIcon', 'assets/clock.png'); // Uncomment if file exists
 }
 
 function setActionLog(msg) {
@@ -718,8 +721,14 @@ function update(time, delta) {
         if (hitboxGraphics) hitboxGraphics.clear();
         if (debugGraphics) debugGraphics.clear();
     }
-    hpText.setText(`HP: ${Math.floor(hp)}`);
-    scoreText.setText(`SCORE: ${score}`);
+    
+    // MODIFIED: Update HUD Text
+    hpText.setText(`x${Math.floor(hp)}`); 
+    
+    // Zero-pad the score to 6 digits (e.g. 000123)
+    let sStr = String(score).padStart(6, '0');
+    scoreText.setText(`SCORE: ${sStr}`);
+
     updateDebugInfo();
 }
 
@@ -747,14 +756,8 @@ function spawnTireTrack(scene, x, y, angleRad) {
 }
 
 function updateDebugInfo() {
+    // MODIFIED: Debug info removed
     if(!debugText) return;
-    const elapsed = 60 - gameTime;
-    let allowedTurrets = 1;
-    if (elapsed < 15) allowedTurrets = 3;      
-    else if (elapsed < 30) allowedTurrets = 5; 
-    else allowedTurrets = 6;  
-    const debugStr = `FPS: ${Math.round(game.loop.actualFps)}\nE: ${enemies.countActive()} | B: ${bullets.countActive()}\nT: ${activeTurrets.length}/${allowedTurrets}\nACT: ${debugText.lastAction || '-'}`;
-    debugText.setText(debugStr);
 }
 
 function handlePickupsMagnet(scene) {
@@ -1426,10 +1429,22 @@ function generateTextures(scene) {
     g.clear(); g.fillStyle(COLORS.TURRET, 1); g.lineStyle(2,0); g.fillRect(0,0,20,20); g.strokeRect(0,0,20,20); g.generateTexture('turretDropTex', 20, 20);
     g.clear(); g.fillStyle(COLORS.ARROW, 1); g.fillTriangle(40, 20, 0, 40, 0, 0); g.generateTexture('arrowTex', 40, 40);
     g.clear(); g.fillStyle(COLORS.BULLET, 1); g.fillCircle(4,4,4); g.generateTexture('bulletTex', 8, 8);
+    // Heart texture for HP icon
     g.clear(); g.fillStyle(COLORS.HEART, 1); g.fillCircle(8,8,8); g.generateTexture('heartTex', 16, 16);
     g.clear(); g.fillStyle(COLORS.POWERUP_BG, 1); g.fillRect(0,0,24,24); g.lineStyle(2, 0xffffff); g.strokeRect(0,0,24,24); g.fillStyle(0xffffff, 1); g.fillRect(4, 4, 16, 4); g.fillRect(4, 4, 4, 16); g.fillRect(16, 4, 4, 8); g.fillRect(4, 12, 16, 4); g.generateTexture('powerupTex', 24, 24);
     g.clear(); g.fillStyle(COLORS.HAPPY, 1); g.fillCircle(12, 12, 12); g.fillStyle(0x000000, 1); g.fillCircle(8, 10, 2); g.fillCircle(16, 10, 2); g.beginPath(); g.lineStyle(2, 0x000000); g.arc(12, 12, 6, 0.1*Math.PI, 0.9*Math.PI, false); g.strokePath(); g.generateTexture('happyTex', 24, 24);
     
+    // MODIFIED: Generate Clock Texture
+    g.clear();
+    g.fillStyle(0x555555, 1); // rim
+    g.fillCircle(16, 16, 16);
+    g.fillStyle(0xFFFFFF, 1); // face
+    g.fillCircle(16, 16, 13);
+    g.fillStyle(0xCC0000, 1); // hands
+    g.fillRect(15, 6, 2, 10); // vertical hand
+    g.fillRect(15, 15, 8, 2); // horizontal hand
+    g.generateTexture('clockTex', 32, 32);
+
     const zG = scene.make.graphics({x:0, y:0, add:false});
     const size = 128;
     for(let row=0; row<4; row++) {
@@ -1449,9 +1464,39 @@ function generateTextures(scene) {
 }
 
 function createUI(scene) {
-    timeText = scene.add.text(gameConfig.scale.width/2, 60, '60', { fontSize: '48px', fill: '#333', fontStyle: 'bold', stroke: '#fff', strokeThickness: 4 }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
-    hpText = scene.add.text(20, 20, 'HP: 100', { fontSize: '18px', fill: '#FF1493', fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 }).setScrollFactor(0).setDepth(200);
-    scoreText = scene.add.text(20, 55, 'SCORE: 0', { fontSize: '18px', fill: '#333', fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 }).setScrollFactor(0).setDepth(200);
+    // MODIFIED: UI Layout Update (Pixel Font, Icons)
+    
+    // 1. HP Icon + Text (Top Left)
+    const uiY_Row1 = -90;
+    
+    hpIcon = scene.add.sprite(-30, uiY_Row1, 'heartSheet', 3).setScrollFactor(0).setDepth(200).setScale(0.3);
+    hpText = scene.add.text(-10, uiY_Row1, 'x100', { 
+        fontSize: '20px', 
+        fontFamily: '"Press Start 2P"',
+        fill: '#ff0000' 
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(200);
+
+    // 2. Score (Top Right)
+    scoreText = scene.add.text(gameConfig.scale.width +50, uiY_Row1, 'SCORE: 0', { 
+        fontSize: '20px', 
+        fontFamily: '"Press Start 2P"', 
+        fill: '#2b3aff' 
+    }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(200);
+
+    // 3. Clock + Time (Bottom Center - Row 2)
+    const uiY_Row2 = -20;
+    const centerX = gameConfig.scale.width / 2;
+    
+    // Icon (Left of text)
+    clockIcon = scene.add.image(centerX - 55, uiY_Row2, 'clockTex').setScrollFactor(0).setDepth(200).setScale(2);
+    // Text (Right of icon)
+    timeText = scene.add.text(centerX - 10, uiY_Row2 + 5, '60', { 
+        fontSize: '55px', 
+        fontFamily: '"Press Start 2P"', 
+        fill: '#ff0000'
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(200);
+    
+    // Bottom Letter HUD
     letterText = null;
     hnyHudSprites = scene.add.container(scene.scale.width / 2, scene.scale.height - 120).setScrollFactor(0).setDepth(999);
     const hudScale = 0.42; 
@@ -1468,10 +1513,13 @@ function createUI(scene) {
         if (!collectedIndices.includes(i)) s.setTexture('questionMark');
         hnyHudSprites.add(s);
     }
+    
     fpsText = scene.add.text(10, gameConfig.scale.height - 30, 'FPS: 60', { fontSize: '14px', fill: '#00aa00', fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 }).setScrollFactor(0).setDepth(500);
-    debugText = scene.add.text(gameConfig.scale.width - 200, 20, '', { fontSize: '10px', fill: '#00ffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 2, align: 'right' }).setScrollFactor(0).setDepth(500).setOrigin(0, 0);
+    fpsText.setVisible(false); // Hide FPS as requested
+
     comboText = scene.add.text(20, 150, '', { fontSize: '36px', fill: '#FF4500', fontStyle: 'bold', stroke: '#fff', strokeThickness: 6 }).setScrollFactor(0).setDepth(200).setVisible(false);
-    highScoreText = scene.add.text(gameConfig.scale.width - 20, 55, 'BEST: ' + highScore, { fontSize: '18px', fill: '#FFD700', fontStyle: 'bold', stroke: '#333', strokeThickness: 2, align: 'right' }).setScrollFactor(0).setDepth(200).setOrigin(1, 0);
+    
+    // REMOVED High Score Text from HUD
 }
 
 function updateTimer() {
