@@ -4,131 +4,193 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Zombie Rollerz: Bigger Boomerang Hitbox</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
-        body { 
-            margin: 0; padding: 0; background-color: #333; 
-            overflow: hidden; touch-action: none;
-            display: flex; justify-content: center; align-items: center;
-            height: 100vh; color: #fff; font-family: 'Arial', sans-serif;
-        }
-        #game-wrapper {
-            position: relative; width: 100%; height: 100%;
-            max-width: 540px; aspect-ratio: 9/16;
-            background: #e0e0e0;
-            overflow: hidden;
-            box-shadow: 0 0 30px rgba(0,0,0,0.5);
-            border: 2px solid #666;
+        html, body { margin: 0; padding: 0; background: #000; width: 100%; height: 100%; overflow: hidden; font-family: 'Press Start 2P', monospace; letter-spacing: 0.5px; text-transform: uppercase; }
+        canvas { display: block; margin: 0 auto; background: #000; }
+        body { display: flex; justify-content: center; align-items: center; touch-action: none; color: #fff; }
+        
+        #game-wrapper { 
+            position: relative; width: 100%; height: 100%; 
+            max-width: 540px; aspect-ratio: 9/16; 
+            background: #000; overflow: hidden; 
+            box-shadow: 0 0 30px rgba(0,0,0,0.5); 
+            border: 2px solid #666; 
         }
         canvas { display: block; width: 100%; height: 100%; }
         #rotate-msg { display: none; }
 
+        /* === 结算界面主容器 === */
         #game-over-ui {
             display: none; 
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.85);
+            background: rgba(0, 0, 0, 0.94);
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start;
             align-items: center;
             z-index: 100;
             color: white;
             text-align: center;
+            font-family: 'Press Start 2P', monospace !important;
+            padding: 20px 5%; 
+            padding-bottom: 40px; 
+            box-sizing: border-box; 
         }
         
+        /* === 上半部分 === */
         #go-top-section {
-            height: 40%; width: 100%; display: flex; flex-direction: column;
+            width: 100%; 
+            display: flex; flex-direction: column;
             justify-content: center; align-items: center;
-            border-bottom: 2px solid #444; padding: 20px 0; box-sizing: border-box;
-        }
-        #leaderboard-section {
-            height: 60%; width: 100%; background: rgba(255, 255, 255, 0.05);
-            display: flex; flex-direction: column; justify-content: start;
-            align-items: center; padding-top: 20px; overflow-y: auto;
+            margin-bottom: 10px; 
+            flex-shrink: 0;
         }
 
-        #go-title { font-size: 36px; margin: 5px 0; text-shadow: 0 0 10px red; }
-        .score-row { display: flex; gap: 0px; font-size: 20px; margin: 5px 0; color: #ddd; }
-        .highlight { color: #FFD700; font-weight: bold; }
+        #go-title { display: none !important; }
         
-        #name-display-area { font-size: 24px; color: #00ffff; font-weight: bold; margin: 10px 0; }
-        #input-area { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+        .score-row { 
+            display: flex; gap: 12px; font-size: 14px; margin: 5px 0; color: #ddd; 
+            flex-wrap: nowrap; white-space: nowrap; 
+        }
+        .highlight { color: #FFD700; font-weight: bold; font-size: 16px; }
+        
+        #input-area { margin-top: 8px; margin-bottom: 8px; }
+        
         input[type="text"] {
-            padding: 8px; font-size: 18px; text-align: center;
-            border: 2px solid #FFD700; border-radius: 5px; background: #222; color: white; width: 200px;
+            padding: 10px; font-size: 12px; text-align: center;
+            border: 2px solid #FFD700; border-radius: 5px; 
+            background: #222; color: white; width: 200px;
+            font-family: 'Press Start 2P', monospace;
+            transition: all 0.3s;
         }
+        #player-name-input.nickname-locked {
+            border-color: transparent !important;
+            background-color: transparent !important;
+            color: #FFFFFF !important;
+            opacity: 1; pointer-events: none;
+            text-shadow: 0 2px 0 #000;
+        }
+
         button#restart-btn {
-            padding: 10px 30px; font-size: 20px; font-weight: bold;
+            padding: 12px 24px; font-size: 13px; font-weight: bold;
             background: #FF4500; color: white; border: none; border-radius: 5px;
-            cursor: pointer; transition: transform 0.1s; margin-top: 5px;
+            cursor: pointer; transition: transform 0.1s; min-width: 180px; 
+            font-family: 'Press Start 2P', monospace;
+            box-shadow: 0 4px 0 #b33200;
         }
-        button#restart-btn:active { transform: scale(0.95); }
+        button#restart-btn:active { transform: scale(0.95); box-shadow: 0 2px 0 #b33200; transform: translateY(2px); }
 
-        #lb-placeholder-text { color: #888; font-style: italic; margin-top: 50px; }
+        /* 分割线 */
+        .section-divider {
+            width: 90%; height: 2px; background-color: #444;
+            margin: 20px 0 15px 0; flex-shrink: 0;
+        }
 
+        /* === 下半部分 === */
+        #leaderboard-section {
+            width: 100%; flex: 1; 
+            display: flex; flex-direction: column; 
+            align-items: center; overflow: hidden; min-height: 0;
+        }
+
+        .lb-main-title {
+            color: #FFD700; font-size: 16px; margin: 0 0 10px 0; text-shadow: 0 2px 0 #000;
+        }
+
+        .lb-sub-label {
+            width: 95%; max-width: 420px;
+            text-align: left; font-size: 10px; color: #888;
+            margin-top: 5px; margin-bottom: 5px; letter-spacing: 1px;
+        }
+
+        #lb-status { color:#bbb; font-size:10px; margin: 2px 0; min-height: 12px; }
+
+        /* 列表 */
+        #lb-top10 { 
+            width: 95%; max-width: 420px; 
+            flex: 1; overflow-y: auto; 
+            display:flex; flex-direction:column; gap: 4px; padding-right: 2px;
+        }
+
+        /* 行样式 */
+        .lb-item {
+
+            display:flex; justify-content:space-between; align-items:center; /* 修改1：baseline 改为 center */
+            padding: 12px 14px; /* 修改2：增加内边距 */
+            line-height: 1.5; /* 修改3：增加行高防止切字 */
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.4);
+            font-size: 12px; 
+            flex-shrink: 0;
+        }
+        .lb-left { display:flex; gap:8px; align-items:baseline; overflow:hidden; }
+        .lb-rank { min-width: 32px; color:#FFD700; font-weight: 900; }
+        .lb-name { 
+            color:#fff; font-weight: 800; 
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; 
+            max-width: 150px; 
+        }
+        .lb-score { color:#FFD700; font-weight: 900; margin-left: auto; }
+
+        /* 我的排名 */
+        #lb-my-rank-container {
+            width: 95%; max-width: 420px; flex-shrink: 0;
+            margin-bottom: 10px; min-height: 36px;
+        }
+        .my-rank-row {
+            background: rgba(184, 134, 11, 0.7) !important;
+            border: 1px solid #FFD700 !important; 
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+        }
+
+        #happy-sprite-text {
+            display: flex; justify-content: center; align-items: center;
+            flex-wrap: nowrap; gap: 0px; margin-bottom: 10px;
+            width: 100%; transform: scale(1.0); 
+        }
+        .hny-letter { background-repeat: no-repeat; image-rendering: pixelated; flex: 0 0 auto; }
+        .hny-space { flex: 0 0 auto; height: 1px; }
+
+        #go-title, #name-display-area, #lb-myline { display: none !important; }
+        
         #debug-btn {
-            position: absolute; bottom: 10px; left: 10px; z-index: 500;
-            padding: 8px 15px; background: rgba(0, 0, 0, 0.6);
-            color: #00FF00; border: 2px solid #00FF00;
-            font-family: monospace; font-weight: bold; font-size: 16px;
-            cursor: pointer; border-radius: 5px; user-select: none;
+            position: absolute; bottom: 5px; left: 5px; z-index: 500;
+            padding: 6px 10px; background: rgba(0, 0, 0, 0.6);
+            color: #00FF00; border: 1px solid #00FF00;
+            font-family: monospace; font-size: 12px; pointer-events: auto;
         }
-        #debug-btn:active { background: rgba(0, 255, 0, 0.2); }
 
         @media screen and (orientation: landscape) and (max-width: 900px) {
             #game-wrapper { display: none; }
             #rotate-msg { display: block; text-align: center; font-size: 20px; margin-top: 20%; color: #fff; }
         }
+    </style>
     
-        button#submit-score-btn {
-            padding: 10px 30px; font-size: 18px; font-weight: bold;
-            background: #00C853; color: white; border: none; border-radius: 5px;
-            cursor: pointer; transition: transform 0.1s; margin-top: 5px;
-        }
-        button#submit-score-btn:active { transform: scale(0.95); }
-
-        #lb-status { color:#bbb; font-size:14px; margin: 6px 0 10px; min-height: 18px; }
-        #lb-top10 { width: 90%; max-width: 420px; display:flex; flex-direction:column; gap:8px; padding-bottom: 20px; }
-        .lb-item {
-            display:flex; justify-content:space-between; align-items:baseline;
-            padding: 10px 12px; border-radius: 10px;
-            border: 1px solid rgba(255,255,255,0.18);
-            background: rgba(0,0,0,0.25);
-            font-size: 16px;
-        }
-        .lb-left { display:flex; gap:10px; align-items:baseline; overflow:hidden; }
-        .lb-rank { min-width: 44px; color:#FFD700; font-weight: 900; }
-        .lb-name { color:#fff; font-weight: 800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 220px; }
-        .lb-score { color:#FFD700; font-weight: 900; }
-
-
-        /* HAPPY NEW YEAR letter spritesheet (4x3 frames, each 110x128) */
-        #happy-sprite-text {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-wrap: nowrap;          /* one line */
-            gap: 0px;
-            margin-top: 4px;
-            margin-bottom: 4px;
-            width: 100%;
-            overflow: hidden;
-        }
-        .hny-letter {
-            background-repeat: no-repeat;
-            image-rendering: pixelated;
-            flex: 0 0 auto;
-        }
-        .hny-space {
-            flex: 0 0 auto;
-            height: 1px;
-        }
-        .hny-missing {
-            filter: grayscale(100%) brightness(0.55) contrast(0.9);
-            opacity: 0.95;
-        }
-
-</style>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script>
+    (function(){
+      window.addEventListener('DOMContentLoaded', () => {
+          const input = document.getElementById('player-name-input');
+          if (!input) return;
+          try{
+            const saved = localStorage.getItem('playerNickname'); 
+            const saved2 = localStorage.getItem('zr_player_name');
+            const locked = localStorage.getItem('zr_name_locked') === "1";
+            if ((saved && saved.trim().length > 0) || (saved2 && saved2.trim().length > 0)){
+              input.value = saved2 || saved;
+              if (locked) {
+                  input.classList.add('nickname-locked');
+                  input.readOnly = true; input.disabled = true;
+              }
+            }
+          }catch(e){}
+      });
+    })();
+    </script>
 </head>
 <body>
 
@@ -140,23 +202,33 @@
 
     <div id="game-over-ui">
         <div id="go-top-section">
-            <h1 id="go-title">GAME OVER</h1>
+            <h1 id="go-title"></h1>
             <div id="happy-sprite-text"></div>
             <div id="name-display-area" style="display:none;"></div>
+            
             <div class="score-row">
                 <div>Score: <span id="go-score" class="highlight">0</span></div>
                 <div>Best: <span id="go-best" class="highlight">0</span></div>
             </div>
             <div style="font-size: 16px; color: #FF0000; margin-bottom: 5px;" id="go-letters"></div>
             <div id="input-area">
-                <input type="text" id="player-name-input" placeholder="Enter Your Name" maxlength="12">
+                <input type="text" id="player-name-input" placeholder="Enter Name" maxlength="12">
             </div>
-            <button id="submit-score-btn">SUBMIT SCORE</button>
-            <button id="restart-btn">RESTART</button>
+            <div id="go-button-row">
+                <button id="restart-btn">PLAY AGAIN</button>
+            </div>
         </div>
+        
+        <div class="section-divider"></div>
+        
         <div id="leaderboard-section">
-            <h2 style="color: #FFD700; border-bottom: 1px solid #666; width: 80%; padding-bottom: 10px;">GLOBAL RANKING</h2>
-            <div id="lb-status">Checking server...</div>
+            <h2 class="lb-main-title">GLOBAL RANKING</h2>
+            <div id="lb-status">Checking...</div>
+            
+            <div class="lb-sub-label">YOUR POSITION</div>
+            <div id="lb-my-rank-container"></div>
+            
+            <div class="lb-sub-label">TOP PLAYERS</div>
             <div id="lb-top10"></div>
         </div>
     </div>
@@ -165,18 +237,13 @@
 <script>
 const DEBUG_SLOTS = false; 
 
-
 function renderHappyNewYearSpritesDOM(collectedIndexSet) {
     const container = document.getElementById('happy-sprite-text');
     if (!container) return;
-
-    const total = 12; // HAPPYNEWYEAR
-
-    // Scale by setting real layout size (avoid transform gaps)
+    const total = 12; 
     const scale = 0.26;
     const fw = 110, fh = 128;
     const cols = 4, rows = 3;
-
     const w = Math.round(fw * scale);
     const h = Math.round(fh * scale);
     const sheetW = Math.round((fw * cols) * scale);
@@ -184,24 +251,19 @@ function renderHappyNewYearSpritesDOM(collectedIndexSet) {
 
     container.innerHTML = '';
     for (let i = 0; i < total; i++) {
-        // Word gaps: HAPPY / NEW / YEAR
         if (i === 5 || i === 8) {
             const sp = document.createElement('div');
             sp.className = 'hny-space';
             sp.style.width = Math.round(18 * scale) + 'px';
             container.appendChild(sp);
         }
-
         const col = i % 4;
         const row = Math.floor(i / 4);
-
         const el = document.createElement('div');
         el.className = 'hny-letter';
         el.style.width = w + 'px';
         el.style.height = h + 'px';
-
         const collected = collectedIndexSet && collectedIndexSet.has && collectedIndexSet.has(i);
-
         if (collected) {
             el.style.backgroundImage = "url('assets/text_happynewyear.png')";
             el.style.backgroundSize = `${sheetW}px ${sheetH}px`;
@@ -211,11 +273,9 @@ function renderHappyNewYearSpritesDOM(collectedIndexSet) {
             el.style.backgroundSize = 'contain';
             el.style.backgroundPosition = 'center';
         }
-
         container.appendChild(el);
     }
 }
-
 
 const CONFIG = {
     PLAYER_SCALE: 0.85, 
@@ -298,7 +358,7 @@ let score = 0, gameTime = 60, hp = 100, maxHp = 100;
 let highScore = 0;
 let targetLetters = "HAPPYNEWYEAR".split('');
 let collectedIndices = [];
-let droppedLetterIndices = []; // letters that have already dropped once (no repeat drops)
+let droppedLetterIndices = []; 
 let damagePerShot = 1; 
 let droppedCounts = { powerup: 0, heart: 0 };
 let comboCount = 0;
@@ -323,23 +383,18 @@ function preload() {
     this.load.spritesheet('wheelAnim', 'assets/wheel_anim.png', { frameWidth: 256, frameHeight: 345 });
     this.load.spritesheet('powerupSheet', 'assets/powup_anim.png', { frameWidth: 89, frameHeight: 89 });
     this.load.spritesheet('heartSheet', 'assets/heart_anim.png', { frameWidth: 89, frameHeight: 89 });
-    
     this.load.image('wheelShadowTex', 'assets/wheel_shadow.png');
-
     this.load.spritesheet('gun8dir', 'assets/machinegun.png', { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet('cannon8dir', 'assets/cannon.png', { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet('boomerang8dir', 'assets/boomerang.png', { frameWidth: 128, frameHeight: 128 });
-    
     this.load.image('boomerangProjectile', 'assets/boomerang_projectile.png');
     this.load.image('boomerangShadowTex', 'assets/boomerang_projectile_shadow.png');
-
     this.load.image('bulletTex', 'assets/bullet.png');
     this.load.image('cannonBallTex', 'assets/bomb.png');
     this.load.spritesheet('explosionAnim', 'assets/explosion.png', { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet('zombie_death', 'assets/zombie_death.png', { frameWidth: 128, frameHeight: 128 });
     this.load.image('gameLogo', 'assets/logo.png');
     this.load.spritesheet('groundTiles', 'assets/tiles.png', { frameWidth: 128, frameHeight: 128 });
-
     this.load.image('playerShadowTex', 'assets/shadow.png');
     this.load.image('trackTex', 'assets/track.png');
 }
@@ -369,7 +424,6 @@ function create() {
     
     createZombieAnimations(this);
 
-    // Explosion animation (8 frames, left->right, top->bottom)
     if (!this.anims.exists('explosion_play')) {
         this.anims.create({
             key: 'explosion_play',
@@ -379,7 +433,6 @@ function create() {
         });
     }
 
-    
     const spinFrames = [1, 2, 5, 8, 7, 6, 3, 0];
     this.anims.create({ key: 'spin_gun', frames: this.anims.generateFrameNumbers('gun8dir', { frames: spinFrames }), frameRate: 6, repeat: -1 });
     this.anims.create({ key: 'spin_cannon', frames: this.anims.generateFrameNumbers('cannon8dir', { frames: spinFrames }), frameRate: 6, repeat: -1 });
@@ -448,7 +501,6 @@ function create() {
     player.setScale(CONFIG.PLAYER_SCALE);
     player.rotation = -Math.PI / 2; 
 
-    // 初始化轮子位置记录
     lastWheelPosLeft = new Phaser.Math.Vector2(wheelLeft.x, wheelLeft.y);
     lastWheelPosRight = new Phaser.Math.Vector2(wheelRight.x, wheelRight.y);
 
@@ -516,54 +568,30 @@ function create() {
 function createStartScreen(scene) {
     const screenWidth = scene.cameras.main.width;
     const screenHeight = scene.cameras.main.height;
-    
     startLogo = scene.add.sprite(screenWidth / 2, screenHeight * 0.15, 'gameLogo');
     startLogo.setScrollFactor(0);
     startLogo.setDepth(1000);
     startLogo.displayWidth = screenWidth * 1.05;
     startLogo.scaleY = startLogo.scaleX; 
-
     const isDesktop = scene.sys.game.device.os.desktop;
     const textStr = isDesktop ? "Tap W/S/A/D to start" : "Drag to start";
-    
     startText = scene.add.text(screenWidth / 2, screenHeight * 0.85, textStr, {
-        fontSize: '28px',
-        fontFamily: 'Arial',
+        fontSize: '21px',
+        fontFamily: 'Press Start 2P',
         fontStyle: 'bold',
         color: '#FFFFFF',
         stroke: '#000000',
         strokeThickness: 4,
         align: 'center'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(1000);
-
-    scene.tweens.add({
-        targets: startText,
-        alpha: 0.5,
-        duration: 800,
-        yoyo: true,
-        repeat: -1
-    });
+    scene.tweens.add({ targets: startText, alpha: 0.5, duration: 800, yoyo: true, repeat: -1 });
 }
 
 function startGameLogic(scene) {
     if (gameStarted) return;
     gameStarted = true;
-
-    scene.tweens.add({
-        targets: startText,
-        alpha: 0,
-        duration: 300,
-        onComplete: () => startText.destroy()
-    });
-
-    scene.tweens.add({
-        targets: startLogo,
-        y: -200,
-        duration: 1000,
-        ease: 'Back.in',
-        onComplete: () => startLogo.setVisible(false)
-    });
-
+    scene.tweens.add({ targets: startText, alpha: 0, duration: 300, onComplete: () => startText.destroy() });
+    scene.tweens.add({ targets: startLogo, y: -200, duration: 1000, ease: 'Back.in', onComplete: () => startLogo.setVisible(false) });
     spawnZombieWave(scene);
     timerEvent = scene.time.addEvent({ delay: 1000, callback: updateTimer, callbackScope: scene, loop: true });
     fireEvent = scene.time.addEvent({ delay: CONFIG.FIRE_RATE, callback: fireTurrets, callbackScope: scene, loop: true });
@@ -575,7 +603,6 @@ function checkGameStart(scene) {
     const anyKeyPress = keys.left.isDown || keys.right.isDown || keys.up.isDown || keys.down.isDown ||
                         wasd.W.isDown || wasd.A.isDown || wasd.S.isDown || wasd.D.isDown;
     const pointerDown = scene.input.activePointer.isDown;
-
     if (anyKeyPress || pointerDown) {
         startGameLogic(scene);
     }
@@ -587,7 +614,6 @@ function createZombieAnimations(scene) {
     scene.anims.create({ key: 'z_up', frames: scene.anims.generateFrameNumbers('zombie_sheet', { frames: [1, 5, 9, 13] }), frameRate: frameRate, repeat: -1 });
     scene.anims.create({ key: 'z_left', frames: scene.anims.generateFrameNumbers('zombie_sheet', { frames: [2, 6, 10, 14] }), frameRate: frameRate, repeat: -1 });
     scene.anims.create({ key: 'z_right', frames: scene.anims.generateFrameNumbers('zombie_sheet', { frames: [3, 7, 11, 15] }), frameRate: frameRate, repeat: -1 });
-
     scene.anims.create({ key: 'death_1', frames: scene.anims.generateFrameNumbers('zombie_death', { start: 0, end: 3 }), frameRate: 7, repeat: 0 });
     scene.anims.create({ key: 'death_2', frames: scene.anims.generateFrameNumbers('zombie_death', { start: 4, end: 7 }), frameRate: 7, repeat: 0 });
 }
@@ -597,13 +623,11 @@ function setupDebugBtn(scene) {
     if (debugBtn) {
         const newBtn = debugBtn.cloneNode(true);
         debugBtn.parentNode.replaceChild(newBtn, debugBtn);
-        
         newBtn.addEventListener('click', () => {
             isDebugMode = !isDebugMode;
             newBtn.innerText = `DEBUG: ${isDebugMode ? 'ON' : 'OFF'}`;
             newBtn.style.color = isDebugMode ? '#00FF00' : '#888';
             newBtn.style.borderColor = isDebugMode ? '#00FF00' : '#888';
-            
             scene.physics.world.drawDebug = isDebugMode;
             if (!scene.physics.world.debugGraphic) {
                 scene.physics.world.createDebugGraphic();
@@ -618,43 +642,55 @@ function setupDomEvents() {
     if (restartBtn) {
         const newBtn = restartBtn.cloneNode(true);
         restartBtn.parentNode.replaceChild(newBtn, restartBtn);
-        newBtn.addEventListener('click', () => {
+        newBtn.addEventListener('click', async () => {
             const nameInput = document.getElementById('player-name-input');
-            if (nameInput && nameInput.value.trim() !== "") {
-                localStorage.setItem('zr_player_name', nameInput.value.trim());
+            const typed = (nameInput && nameInput.value) ? nameInput.value.trim() : "";
+            let saved = "";
+            try { saved = (localStorage.getItem('zr_player_name') || localStorage.getItem('lb_name') || "").trim(); } catch(e){}
+            const finalName = typed || saved;
+            if (!finalName) {
+                try {
+                    if (nameInput) { nameInput.focus(); }
+                    const st = document.getElementById('lb-status');
+                    if (st) st.textContent = "Enter your name to save score.";
+                } catch(e){}
+                return;
             }
-
-            location.reload(); 
+            if (typed) {
+                try { localStorage.setItem('zr_player_name', typed); } catch(e){}
+            }
+            try {
+                const api = window.LeaderboardAPI;
+                if (api && typeof api.beforePlayAgain === 'function') {
+                    await Promise.race([
+                        api.beforePlayAgain(),
+                        new Promise(res => setTimeout(res, 1200))
+                    ]);
+                }
+            } catch(e){}
+            location.reload();
         });
     }
 }
 
 function update(time, delta) {
     if (gameOver) return;
-
     updateVisuals(time);
-
     if (!gameStarted) {
         checkGameStart(this);
         return;
     }
-
     handlePlayerMovement(this, time);
     handlePickupsMagnet(this);
-
-    // --- 修改点：使用插值生成连续车辙 ---
     updateWheelTrack(this, wheelLeft, lastWheelPosLeft);
     updateWheelTrack(this, wheelRight, lastWheelPosRight);
 
-    // 更新僵尸阴影位置
     enemies.getChildren().forEach(enemy => {
         if (!enemy.active) return;
         if (enemy.shadow && enemy.shadow.active) {
             enemy.shadow.setPosition(enemy.x, enemy.y + 20); 
         }
-        
         if (enemy.isDying) return;
-
         const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, player.x, player.y);
         const deg = Phaser.Math.RadToDeg(angle);
         if (deg > -45 && deg <= 45) enemy.play('z_right', true);
@@ -682,27 +718,20 @@ function update(time, delta) {
         if (hitboxGraphics) hitboxGraphics.clear();
         if (debugGraphics) debugGraphics.clear();
     }
-
     hpText.setText(`HP: ${Math.floor(hp)}`);
     scoreText.setText(`SCORE: ${score}`);
-
     updateDebugInfo();
 }
 
-// --- 修改点：插值生成车辙逻辑 ---
 function updateWheelTrack(scene, wheel, lastPosVec) {
     const dist = Phaser.Math.Distance.Between(lastPosVec.x, lastPosVec.y, wheel.x, wheel.y);
-    const step = 8; // 生成间距
-
+    const step = 8; 
     if (dist > step) {
         let count = Math.floor(dist / step);
         const angle = Math.atan2(wheel.y - lastPosVec.y, wheel.x - lastPosVec.x);
-        
         for (let i = 0; i < count; i++) {
-            // 计算插值坐标：从上一个点向前步进
             lastPosVec.x += Math.cos(angle) * step;
             lastPosVec.y += Math.sin(angle) * step;
-            
             spawnTireTrack(scene, lastPosVec.x, lastPosVec.y, angle);
         }
     }
@@ -711,17 +740,10 @@ function updateWheelTrack(scene, wheel, lastPosVec) {
 function spawnTireTrack(scene, x, y, angleRad) {
     const track = scene.add.sprite(x, y, 'trackTex');
     track.setDepth(0); 
-    // 图片默认竖直，所以 + 90度
     track.setRotation(angleRad + Math.PI / 2); 
     track.setScale(1.2); 
     track.alpha = 0.6; 
-
-    scene.tweens.add({
-        targets: track,
-        alpha: 0,
-        duration: 10000, // 10秒淡出
-        onComplete: () => track.destroy()
-    });
+    scene.tweens.add({ targets: track, alpha: 0, duration: 10000, onComplete: () => track.destroy() });
 }
 
 function updateDebugInfo() {
@@ -738,11 +760,9 @@ function updateDebugInfo() {
 function handlePickupsMagnet(scene) {
     pickups.getChildren().forEach(drop => {
         if (!drop.active) return;
-        
         if (drop.shadow && drop.shadow.active) {
             drop.shadow.setPosition(drop.x, drop.y + 25);
         }
-
         if (drop.dropType === 'LETTER') return;
         if (!drop.canMagnet) return;
         const dist = Phaser.Math.Distance.Between(drop.x, drop.y, player.x, player.y);
@@ -803,10 +823,8 @@ function updateVisuals(time) {
     wheelRightShadow.rotation = wheelRight.rotation;
 
     const isHorizontal = Math.abs(Math.sin(wheelLeft.rotation)) > 0.707;
-    
     const wVert = 180;
     const hVert = 280;
-
     if (isHorizontal) {
         if (wheelLeft.body.width !== hVert) {
             wheelLeft.body.setSize(hVert, wVert, true);
@@ -820,7 +838,6 @@ function updateVisuals(time) {
     }
     
     player.rotation = isMoving ? Math.sin(time * 0.025) * 0.03 : 0;
-    
     playerShadow.x = player.x; 
     playerShadow.y = player.y + 10; 
     playerShadow.rotation = player.rotation; 
@@ -872,7 +889,6 @@ function updateVisuals(time) {
                 tInfo.targetAngle = Phaser.Math.Angle.Between(turret.x, turret.y, target.x, target.y);
                 const deg = Phaser.Math.RadToDeg(tInfo.targetAngle);
                 let frameIndex = 7; 
-
                 if (deg >= -22.5 && deg < 22.5) frameIndex = 5;       
                 else if (deg >= 22.5 && deg < 67.5) frameIndex = 8;   
                 else if (deg >= 67.5 && deg < 112.5) frameIndex = 7;  
@@ -881,7 +897,6 @@ function updateVisuals(time) {
                 else if (deg >= -157.5 && deg < -112.5) frameIndex = 0;
                 else if (deg >= -112.5 && deg < -67.5) frameIndex = 1;
                 else if (deg >= -67.5 && deg < -22.5) frameIndex = 2; 
-
                 turret.setFrame(frameIndex);
                 turret.rotation = 0; 
             } else {
@@ -898,8 +913,6 @@ function updateVisuals(time) {
         b.x = player.x + Math.cos(currentAngle) * radius;
         b.y = player.y + Math.sin(currentAngle) * radius;
         b.rotation += 0.4; 
-
-        // --- 修改点：更新回旋镖阴影位置 ---
         if (b.shadowSprite) {
             b.shadowSprite.setPosition(b.x, b.y + 30);
             b.shadowSprite.setRotation(b.rotation);
@@ -944,7 +957,6 @@ function createOneEnemy(scene, x, y) {
         enemy.stunUntil = 0; 
         enemy.setScale(0.4);
         enemy.isDying = false; 
-
         enemy.shadow = scene.add.sprite(x, y, 'shadowTex');
         enemy.shadow.setDepth(2);
         enemy.shadow.setScale(1.2, 0.4); 
@@ -957,7 +969,6 @@ function addTurret(scene, specificType = null) {
     if (slotIndex === -1) return; 
     const slot = turretSlots[slotIndex];
     slot.occupied = true;
-    
     let type = specificType;
     if (!type) {
         if (activeTurrets.length === 0) type = 'GUN';
@@ -968,7 +979,6 @@ function addTurret(scene, specificType = null) {
             else type = 'CANNON';
         }
     }
-
     let textureKey;
     if (type === 'GUN') textureKey = 'gun8dir'; 
     else if (type === 'BOOMERANG') textureKey = 'boomerang8dir';
@@ -976,21 +986,11 @@ function addTurret(scene, specificType = null) {
     
     const tSprite = scene.add.sprite(player.x, player.y, textureKey);
     tSprite.setDepth(11);
-
-    if (type === 'GUN') {
-        tSprite.setScale(0.5 * CONFIG.PLAYER_SCALE);
-    } else if (type === 'CANNON') {
-        tSprite.setScale(0.5 * CONFIG.PLAYER_SCALE);
-    } else if (type === 'BOOMERANG') {
-        tSprite.setScale(0.5 * CONFIG.PLAYER_SCALE);
-    } else {
-        tSprite.setScale(1.0); 
-    }
-
-    let turretData = {
-        type: type, sprite: tSprite, offsetX: slot.x, offsetY: slot.y,
-        hasTarget: false, targetEntity: null, targetAngle: 0, lastFired: 0 
-    };
+    if (type === 'GUN') { tSprite.setScale(0.5 * CONFIG.PLAYER_SCALE); }
+    else if (type === 'CANNON') { tSprite.setScale(0.5 * CONFIG.PLAYER_SCALE); }
+    else if (type === 'BOOMERANG') { tSprite.setScale(0.5 * CONFIG.PLAYER_SCALE); }
+    else { tSprite.setScale(1.0); }
+    let turretData = { type: type, sprite: tSprite, offsetX: slot.x, offsetY: slot.y, hasTarget: false, targetEntity: null, targetAngle: 0, lastFired: 0 };
     activeTurrets.push(turretData);
     if (type === 'BOOMERANG') spawnBoomerangProjectiles(scene);
     setActionLog("Installed " + type);
@@ -1005,12 +1005,8 @@ function spawnBoomerangProjectiles(scene) {
         b.phaseOffset = baseOffset + (i * (Math.PI * 2 / 3));
         b.orbitRadius = CONFIG.BOOMERANG_RADIUS * radiusMultipliers[i]; 
         b.setScale(1.2); 
-
-        // --- 修改点：创建回旋镖阴影 ---
         let shadow = scene.add.sprite(0, 0, 'boomerangShadowTex');
-        shadow.setDepth(8);
-        shadow.setScale(1.2);
-        shadow.setAlpha(0.5);
+        shadow.setDepth(8); shadow.setScale(1.2); shadow.setAlpha(0.5);
         b.shadowSprite = shadow;
     }
 }
@@ -1029,9 +1025,6 @@ function fireTurrets() {
                 this.physics.velocityFromRotation(tInfo.targetAngle, CONFIG.BULLET_SPEED, b.body.velocity);
                 b.setScale(0.25);
                 b.body.updateFromGameObject();
-
-                // --- 修改点：移除子弹阴影 ---
-
                 this.time.delayedCall(1500, () => { if(b.active) b.setActive(false).setVisible(false).body.enable = false; });
             }
         }
@@ -1048,12 +1041,8 @@ function fireCannonBall(tInfo) {
     if (!tInfo.targetEntity || !tInfo.targetEntity.active) return;
     const scene = tInfo.sprite.scene;
     const ball = scene.add.sprite(tInfo.sprite.x, tInfo.sprite.y, 'cannonBallTex');
-    ball.setDepth(25);
-    ball.setScale(0.5); 
+    ball.setDepth(25); ball.setScale(0.5); 
     scene.tweens.add({ targets: ball, angle: 720, duration: 750 }); 
-
-    // --- 修改点：移除炸弹阴影 ---
-
     const target = tInfo.targetEntity;
     const tx = target.x; const ty = target.y;
     const dist = Phaser.Math.Distance.Between(ball.x, ball.y, tx, ty);
@@ -1075,25 +1064,13 @@ function fireCannonBall(tInfo) {
 
 function explodeCannonBall(scene, x, y) {
     const explosion = scene.add.sprite(x, y, 'explosionAnim');
-    explosion.setDepth(30); 
-    explosion.setScale(2.5); 
-    explosion.play('explode');
-    explosion.once('animationcomplete', () => {
-        explosion.destroy();
-    });
-
+    explosion.setDepth(30); explosion.setScale(2.5); explosion.play('explode');
+    explosion.once('animationcomplete', () => { explosion.destroy(); });
     if (isDebugMode) {
         const debugCircle = scene.add.circle(x, y, CONFIG.CANNON_AOE_RADIUS);
-        debugCircle.setStrokeStyle(2, 0x00FF00); 
-        debugCircle.setDepth(1001);
-        scene.tweens.add({
-            targets: debugCircle,
-            alpha: 0,
-            duration: 1000,
-            onComplete: () => debugCircle.destroy()
-        });
+        debugCircle.setStrokeStyle(2, 0x00FF00); debugCircle.setDepth(1001);
+        scene.tweens.add({ targets: debugCircle, alpha: 0, duration: 1000, onComplete: () => debugCircle.destroy() });
     }
-
     enemies.getChildren().forEach(enemy => {
         if (!enemy.active) return;
         const dist = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
@@ -1110,11 +1087,7 @@ function explodeCannonBall(scene, x, y) {
 }
 
 function handlePlayerMovement(scene, time) {
-    // Disable player control during ship-destroyed sequence (death animation)
-    if (shipDestroyedSequence) {
-        try { player.setVelocity(0); } catch (e) {}
-        return;
-    }
+    if (shipDestroyedSequence) { try { player.setVelocity(0); } catch (e) {} return; }
     player.setVelocity(0);
     let vx = 0, vy = 0;
     let keys = scene.input.keyboard.addKeys('W,A,S,D');
@@ -1156,7 +1129,6 @@ function hitEnemyByBoomerang(boomerang, enemy) {
 
 function applyDamageToEnemy(enemy, dmg) {
     if (enemy.isDying) return; 
-
     enemy.hp -= dmg;
     enemy.setTintFill(0xffffff);
     enemy.scene.time.delayedCall(50, () => { if(enemy.active) enemy.clearTint(); });
@@ -1164,19 +1136,10 @@ function applyDamageToEnemy(enemy, dmg) {
     if (enemy.hp <= 0) killEnemy(enemy);
 }
 
-
 function flashHit(sprite, scene) {
     if (!sprite || !sprite.active) return;
-
-    // Cancel previous scheduled clear to avoid stacking
-    if (sprite.__tintTimer) {
-        try { sprite.__tintTimer.remove(false); } catch (e) {}
-        sprite.__tintTimer = null;
-    }
-
-    // Zombie-like hit flash: tintFill + short delay
+    if (sprite.__tintTimer) { try { sprite.__tintTimer.remove(false); } catch (e) {} sprite.__tintTimer = null; }
     try { sprite.setTintFill(0xffffff); } catch (e) {}
-
     sprite.__tintTimer = scene.time.delayedCall(100, () => {
         if (!sprite || !sprite.active) return;
         try { sprite.clearTint(); } catch (e) {}
@@ -1185,113 +1148,76 @@ function flashHit(sprite, scene) {
 }
 
 function flashShipAndWheels(scene) {
-    // Ship body
     flashHit(player, scene);
-    // Wheels
     flashHit(wheelLeft, scene);
     flashHit(wheelRight, scene);
 }
 
 function handleTrample(obj, enemy) {
     if (gameOver || !enemy.active || enemy.isDying) return;
-    
     if (!isDebugMode) {
         hp -= CONFIG.HP_TRAMPLE_COST;
         showFloatText(this, player.x, player.y - 60, `-${CONFIG.HP_TRAMPLE_COST}`, '#ff0000');
         flashShipAndWheels(this);
     }
-
     this.cameras.main.shake(100, 0.005);
     killEnemy(enemy);
-    
     if (!isDebugMode && hp <= 0) startShipDestroyedSequence(this);
 }
 
 function killEnemy(enemy) {
     if (!enemy.active || enemy.isDying) return; 
-    
-    enemy.isDying = true; 
-    enemy.body.enable = false; 
-    enemy.setVelocity(0); 
-
+    enemy.isDying = true; enemy.body.enable = false; enemy.setVelocity(0); 
     if (enemy.shadow) enemy.shadow.destroy();
-
     explosionEmitter.emitParticleAt(enemy.x, enemy.y, 6);
-    
     comboCount++;
     if (comboTimerEvent) comboTimerEvent.remove(); 
     comboTimerEvent = enemy.scene.time.delayedCall(CONFIG.COMBO_TIMEOUT, resetCombo, [], enemy.scene);
     updateComboUI(); 
-    
     let killScore = 10 + (comboCount * 2);
     score += killScore;
-
     enemy.setTexture('zombie_death');
-    
-    if (enemy.anims.currentAnim && enemy.anims.currentAnim.key === 'z_left') {
-        enemy.setFlipX(true);
-    } else {
-        enemy.setFlipX(false);
-    }
-    
+    if (enemy.anims.currentAnim && enemy.anims.currentAnim.key === 'z_left') { enemy.setFlipX(true); } else { enemy.setFlipX(false); }
     const animKey = Math.random() < 0.5 ? 'death_1' : 'death_2';
     enemy.play(animKey);
 
-        const chance = Phaser.Math.Between(0, 100);
-        const elapsed = 60 - gameTime; 
-        const allowedLetters = Math.floor(elapsed / 4) + 1;
-        const allowedHearts = Math.floor(elapsed / 6) + 1;
-        let allowedPowerUps = 0;
-        if (elapsed < 30) allowedPowerUps = Math.floor(elapsed / 6) + 1;
-        else if (elapsed < 50) allowedPowerUps = 5;
-        else allowedPowerUps = 8;
-        let allowedTurretsTotal = 1; 
-        if (elapsed < 15) allowedTurretsTotal = 3;      
-        else if (elapsed < 30) allowedTurretsTotal = 5; 
-        else allowedTurretsTotal = 6;                   
-        if (chance < 8) {
-            if (droppedCounts.heart < CONFIG.LIMIT_HEART && droppedCounts.heart < allowedHearts) dropItem(enemy.scene, enemy.x, enemy.y, 'HEART');
-        } else if (chance < 25) {
-            let turretsOnGround = pickups.getChildren().filter(p => p.active && p.dropType === 'TURRET').length;
-            let currentTotal = activeTurrets.length + turretsOnGround;
-            if (currentTotal < allowedTurretsTotal) dropItem(enemy.scene, enemy.x, enemy.y, 'TURRET');
-            else if (collectedIndices.length < allowedLetters) dropItem(enemy.scene, enemy.x, enemy.y, 'LETTER');
-        } else if (chance < 40) {
-            if (droppedCounts.powerup < CONFIG.LIMIT_POWERUP && droppedCounts.powerup < allowedPowerUps) dropItem(enemy.scene, enemy.x, enemy.y, 'POWERUP');
-        } else {
-            if (collectedIndices.length < allowedLetters) dropItem(enemy.scene, enemy.x, enemy.y, 'LETTER');
-        }
+    const chance = Phaser.Math.Between(0, 100);
+    const elapsed = 60 - gameTime; 
+    const allowedLetters = Math.floor(elapsed / 4) + 1;
+    const allowedHearts = Math.floor(elapsed / 6) + 1;
+    let allowedPowerUps = 0;
+    if (elapsed < 30) allowedPowerUps = Math.floor(elapsed / 6) + 1;
+    else if (elapsed < 50) allowedPowerUps = 5;
+    else allowedPowerUps = 8;
+    let allowedTurretsTotal = 1; 
+    if (elapsed < 15) allowedTurretsTotal = 3;      
+    else if (elapsed < 30) allowedTurretsTotal = 5; 
+    else allowedTurretsTotal = 6;                   
+    if (chance < 8) {
+        if (droppedCounts.heart < CONFIG.LIMIT_HEART && droppedCounts.heart < allowedHearts) dropItem(enemy.scene, enemy.x, enemy.y, 'HEART');
+    } else if (chance < 25) {
+        let turretsOnGround = pickups.getChildren().filter(p => p.active && p.dropType === 'TURRET').length;
+        let currentTotal = activeTurrets.length + turretsOnGround;
+        if (currentTotal < allowedTurretsTotal) dropItem(enemy.scene, enemy.x, enemy.y, 'TURRET');
+        else if (collectedIndices.length < allowedLetters) dropItem(enemy.scene, enemy.x, enemy.y, 'LETTER');
+    } else if (chance < 40) {
+        if (droppedCounts.powerup < CONFIG.LIMIT_POWERUP && droppedCounts.powerup < allowedPowerUps) dropItem(enemy.scene, enemy.x, enemy.y, 'POWERUP');
+    } else {
+        if (collectedIndices.length < allowedLetters) dropItem(enemy.scene, enemy.x, enemy.y, 'LETTER');
+    }
     enemy.once('animationcomplete', () => {
-        enemy.scene.tweens.add({
-            targets: enemy,
-            alpha: 0,
-            duration: 120, 
-            yoyo: true,
-            repeat: 1,
-            delay: 200, 
-            onComplete: () => {
-                enemy.destroy();
-            }
-        });
+        enemy.scene.tweens.add({ targets: enemy, alpha: 0, duration: 120, yoyo: true, repeat: 1, delay: 200, onComplete: () => { enemy.destroy(); } });
     });
 }
 
-function resetCombo() {
-    if(comboCount > 0) { comboText.setText(""); comboCount = 0; }
-}
+function resetCombo() { if(comboCount > 0) { comboText.setText(""); comboCount = 0; } }
 
 function updateComboUI() {
     if (comboCount > 1) {
-        comboText.setText(`COMBO x${comboCount}`);
-        comboText.setVisible(true);
-        comboText.setScale(1.5);
+        comboText.setText(`COMBO x${comboCount}`); comboText.setVisible(true); comboText.setScale(1.5);
         if(comboScaleTween) comboScaleTween.stop();
-        comboScaleTween = game.scene.scenes[0].tweens.add({
-            targets: comboText, scaleX: 1, scaleY: 1, duration: 200, ease: 'Back.out'
-        });
-    } else {
-        comboText.setVisible(false);
-    }
+        comboScaleTween = game.scene.scenes[0].tweens.add({ targets: comboText, scaleX: 1, scaleY: 1, duration: 200, ease: 'Back.out' });
+    } else { comboText.setVisible(false); }
 }
 
 function dropItem(scene, x, y, type) {
@@ -1305,460 +1231,192 @@ function dropItem(scene, x, y, type) {
     if (type === 'HEART') droppedCounts.heart++;
     
     let sprite;
-    
     if (type === 'TURRET') {
         const rand = Math.random();
         let specificType = 'GUN';
         if (rand < 0.33) specificType = 'GUN';
         else if (rand < 0.66) specificType = 'BOOMERANG';
         else specificType = 'CANNON';
-
         let tex;
         if (specificType === 'GUN') tex = 'gun8dir';
         else if (specificType === 'CANNON') tex = 'cannon8dir';
         else tex = 'boomerang8dir';
-
         sprite = pickups.create(x, y, tex);
         sprite.play('spin_' + specificType.toLowerCase()); 
-        sprite.setScale(0.6); 
-        sprite.specificType = specificType; 
-        
-        sprite.setDrag(1000); 
-        sprite.setBounce(0.5); 
-        sprite.setCircle(40); 
+        sprite.setScale(0.6); sprite.specificType = specificType; 
+        sprite.setDrag(1000); sprite.setBounce(0.5); sprite.setCircle(40); 
     } else {
         if (type === 'HEART') {
             sprite = pickups.create(x, y, 'heartSheet', 0);
             sprite.play('spin_heart');
-            sprite.setScale(0.7); 
-            sprite.setCircle(40);
-
-            // Collision box so enemies don't stack on top visually
-            if (sprite.body) {
-                sprite.body.setAllowGravity(false);
-                sprite.body.setImmovable(true);
-                sprite.body.setSize(90, 90, true);
-            }
+            sprite.setScale(0.7); sprite.setCircle(40);
+            if (sprite.body) { sprite.body.setAllowGravity(false); sprite.body.setImmovable(true); sprite.body.setSize(90, 90, true); }
             try { scene.physics.add.collider(enemies, sprite); } catch (e) {}
         }
         else if (type === 'POWERUP') {
             sprite = pickups.create(x, y, 'powerupSheet', 0);
             sprite.play('spin_powerup');
-            sprite.setScale(0.8);
-            sprite.setCircle(40);
-
-            // Bigger pickup + collision box so enemies don't visually stack on top of it
-            if (sprite.body) {
-                sprite.body.setAllowGravity(false);
-                sprite.body.setImmovable(true);
-                sprite.body.setSize(90, 90, true); // box collider similar to turret/letters
-            }
+            sprite.setScale(0.8); sprite.setCircle(40);
+            if (sprite.body) { sprite.body.setAllowGravity(false); sprite.body.setImmovable(true); sprite.body.setSize(90, 90, true); }
             try { scene.physics.add.collider(enemies, sprite); } catch (e) {}
         }
         else if (type === 'LETTER') {
             let needed = [];
-            // Only drop each HAPPY/NEW/YEAR letter once. If it has already dropped, never drop again.
-            targetLetters.forEach((l, i) => {
-                if (!collectedIndices.includes(i) && !droppedLetterIndices.includes(i)) needed.push({ l, i });
-            });
-            if (needed.length === 0) return; // no letters left to drop
+            targetLetters.forEach((l, i) => { if (!collectedIndices.includes(i) && !droppedLetterIndices.includes(i)) needed.push({ l, i }); });
+            if (needed.length === 0) return; 
             let pick = Phaser.Utils.Array.GetRandom(needed);
             const letterSpr = scene.add.sprite(x, y, 'hnyLetters', pick.i).setOrigin(0.5);
-
-// 150% bigger so it's easier to see (and matches turret pickup presence)
-letterSpr.setScale(0.42);
-
-// Add a collision box so enemies don't visually pile up on top of it
-scene.physics.add.existing(letterSpr);
-if (letterSpr.body) {
-    letterSpr.body.setAllowGravity(false);
-    letterSpr.body.setImmovable(true);
-    // Bigger box than the sprite to keep zombies from overlapping the center
-    letterSpr.body.setSize(90, 90, true);
-}
-// Letters should NOT magnet to the ship; they auto-fly to HUD after 2s
-letterSpr.canMagnet = false;
-pickups.add(letterSpr);
-
-// Delay pickup like turret-style drops (briefly "land" before being collectible)
-letterSpr.pickupReady = false;
-// Auto-collect after 2s: fly to HUD slot (no distance check)
-scene.time.delayedCall(2000, () => { if (letterSpr.active) autoCollectLetterToHUD(scene, letterSpr); });
-
-// Float for extra motion while waiting to be picked up
-scene.tweens.add({ targets: letterSpr, y: y - 8, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-
-// Collider with enemies so they bump into it instead of covering it
-try { scene.physics.add.collider(enemies, letterSpr); } catch (e) {}
-
-sprite = letterSpr; sprite.letterIndex = pick.i;
+            letterSpr.setScale(0.42);
+            scene.physics.add.existing(letterSpr);
+            if (letterSpr.body) { letterSpr.body.setAllowGravity(false); letterSpr.body.setImmovable(true); letterSpr.body.setSize(90, 90, true); }
+            letterSpr.canMagnet = false;
+            pickups.add(letterSpr);
+            letterSpr.pickupReady = false;
+            scene.time.delayedCall(2000, () => { if (letterSpr.active) autoCollectLetterToHUD(scene, letterSpr); });
+            scene.tweens.add({ targets: letterSpr, y: y - 8, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+            try { scene.physics.add.collider(enemies, letterSpr); } catch (e) {}
+            sprite = letterSpr; sprite.letterIndex = pick.i;
             if (!droppedLetterIndices.includes(pick.i)) droppedLetterIndices.push(pick.i);
         }
-        
         scene.tweens.add({ targets: sprite, y: y - 10, duration: 500, yoyo: true, repeat: -1 });
     }
-
     if (type === 'TURRET' || type === 'POWERUP' || type === 'HEART') {
         sprite.shadow = scene.add.sprite(x, y, 'shadowTex');
-        sprite.shadow.setDepth(1); 
-        sprite.shadow.setScale(1.9); 
-        sprite.shadow.alpha = 0.4;
+        sprite.shadow.setDepth(1); sprite.shadow.setScale(1.9); sprite.shadow.alpha = 0.4;
     }
-
     sprite.dropType = type;
     sprite.isMagneting = false; sprite.canMagnet = false;
     scene.time.delayedCall(1000, () => { if(sprite.active) sprite.canMagnet = true; });
     sprite.setDepth(6);
 }
 
-
 function autoCollectLetterToHUD(scene, drop) {
     if (!drop || !drop.active) return;
     if (typeof drop.letterIndex !== 'number') return;
-
     if (!hnyHudSprites || !hnyHudSprites.list || !hnyHudSprites.list[drop.letterIndex]) {
-        // Fallback: mark collected directly
-        if (!collectedIndices.includes(drop.letterIndex)) {
-            collectedIndices.push(drop.letterIndex);
-            updateLetterUI();
-        }
+        if (!collectedIndices.includes(drop.letterIndex)) { collectedIndices.push(drop.letterIndex); updateLetterUI(); }
         try { drop.destroy(); } catch (e) {}
         return;
     }
-
-    // Already collected? just remove the drop
-    if (collectedIndices.includes(drop.letterIndex)) {
-        try { drop.destroy(); } catch (e) {}
-        return;
-    }
-
+    if (collectedIndices.includes(drop.letterIndex)) { try { drop.destroy(); } catch (e) {} return; }
     const cam = scene.cameras.main;
-
     const hudSpr = hnyHudSprites.list[drop.letterIndex];
-
-    // HUD container uses scrollFactor(0) => these are SCREEN coordinates
     const tx = hnyHudSprites.x + hudSpr.x;
     const ty = hnyHudSprites.y + hudSpr.y;
-
-    // Convert world drop position -> SCREEN coordinates so it doesn't drift when the ship moves
     const sx = drop.x - cam.scrollX;
     const sy = drop.y - cam.scrollY;
-
-    // Spawn a visual copy that flies in SCREEN space to the HUD slot
-    const fly = scene.add.sprite(sx, sy, 'hnyLetters', drop.letterIndex)
-        .setOrigin(0.5)
-        .setScale(drop.scaleX || 0.42)
-        .setScrollFactor(0)
-        .setDepth(2000);
-
-    // Remove the ground drop once we start flying
+    const fly = scene.add.sprite(sx, sy, 'hnyLetters', drop.letterIndex).setOrigin(0.5).setScale(drop.scaleX || 0.42).setScrollFactor(0).setDepth(2000);
     try { drop.destroy(); } catch (e) {}
-
     scene.tweens.add({
-        targets: fly,
-        x: tx,
-        y: ty,
-        scaleX: hudSpr.scaleX || 0.42,
-        scaleY: hudSpr.scaleY || 0.42,
-        duration: 260,
-        ease: 'Quad.easeInOut',
+        targets: fly, x: tx, y: ty, scaleX: hudSpr.scaleX || 0.42, scaleY: hudSpr.scaleY || 0.42, duration: 260, ease: 'Quad.easeInOut',
         onComplete: () => {
             try { fly.destroy(); } catch (e) {}
-
-            // Mark collected and update HUD to show the real letter
-            collectedIndices.push(drop.letterIndex);
-            updateLetterUI();
-
-            // Pop + glow on the HUD letter
+            collectedIndices.push(drop.letterIndex); updateLetterUI();
             try {
                 const spr = hnyHudSprites.list[drop.letterIndex];
                 const baseScale = spr.scaleX || 0.42;
-
-                scene.tweens.add({
-                    targets: spr,
-                    scaleX: baseScale * 1.18,
-                    scaleY: baseScale * 1.18,
-                    duration: 90,
-                    yoyo: true,
-                    ease: 'Quad.easeOut'
-                });
-
-                spr.setBlendMode(Phaser.BlendModes.ADD);
-                spr.setTintFill(0xffffaa);
-                scene.time.delayedCall(120, () => {
-                    if (!spr || !spr.active) return;
-                    spr.clearTint();
-                    spr.setBlendMode(Phaser.BlendModes.NORMAL);
-                });
+                scene.tweens.add({ targets: spr, scaleX: baseScale * 1.18, scaleY: baseScale * 1.18, duration: 90, yoyo: true, ease: 'Quad.easeOut' });
+                spr.setBlendMode(Phaser.BlendModes.ADD); spr.setTintFill(0xffffaa);
+                scene.time.delayedCall(120, () => { if (!spr || !spr.active) return; spr.clearTint(); spr.setBlendMode(Phaser.BlendModes.NORMAL); });
             } catch (e) {}
         }
     });
 }
 
-
-
-
 function showHPSprite(scene) {
     if (!player || !player.active) return;
-
-    // Destroy previous prompt if it exists (avoid stacking)
-    try {
-        if (window._activeHPText && window._activeHPText.active) {
-            window._activeHPText.destroy();
-        }
-    } catch (e) {}
-
-    const img = scene.add.image(player.x, player.y - 80, 'textHP')
-        .setDepth(1000)
-        .setScale(0.5);
-
+    try { if (window._activeHPText && window._activeHPText.active) { window._activeHPText.destroy(); } } catch (e) {}
+    const img = scene.add.image(player.x, player.y - 80, 'textHP').setDepth(1000).setScale(0.5);
     window._activeHPText = img;
-
-    // Floating offset (so we can animate upward while still following the ship)
     const floatObj = { v: 0 };
-
-    // Follow player while visible
-    const follow = () => {
-        if (!img.active || !player || !player.active) {
-            scene.events.off('update', follow);
-            return;
-        }
-        img.x = player.x;
-        img.y = player.y - 80 + floatObj.v;
-    };
+    const follow = () => { if (!img.active || !player || !player.active) { scene.events.off('update', follow); return; } img.x = player.x; img.y = player.y - 80 + floatObj.v; };
     scene.events.on('update', follow);
-
-    // Move upward after appearing (while holding)
-    scene.tweens.add({
-        targets: floatObj,
-        v: -40,
-        duration: 1000,
-        ease: 'Cubic.easeOut'
-    });
-
-    // Hold 1s total, then fade out quickly (0.25s)
-    scene.tweens.add({
-        targets: img,
-        alpha: 0,
-        duration: 250,
-        delay: 1000,
-        ease: 'Linear',
-        onComplete: () => {
-            try { scene.events.off('update', follow); } catch (e) {}
-            try {
-                if (window._activeHPText === img) window._activeHPText = null;
-            } catch (e) {}
-            img.destroy();
-        }
-    });
+    scene.tweens.add({ targets: floatObj, v: -40, duration: 1000, ease: 'Cubic.easeOut' });
+    scene.tweens.add({ targets: img, alpha: 0, duration: 250, delay: 1000, ease: 'Linear', onComplete: () => { try { scene.events.off('update', follow); } catch (e) {} try { if (window._activeHPText === img) window._activeHPText = null; } catch (e) {} img.destroy(); } });
 }
 
 function showPowerupSprite(scene) {
     if (!player || !player.active) return;
-
-    // Destroy previous prompt if it exists (avoid stacking)
-    try {
-        if (window._activePowerupText && window._activePowerupText.active) {
-            window._activePowerupText.destroy();
-        }
-    } catch (e) {}
-
-    const img = scene.add.image(player.x, player.y - 80, 'textPowerup')
-        .setDepth(1000)
-        .setScale(0.5);
-
+    try { if (window._activePowerupText && window._activePowerupText.active) { window._activePowerupText.destroy(); } } catch (e) {}
+    const img = scene.add.image(player.x, player.y - 80, 'textPowerup').setDepth(1000).setScale(0.5);
     window._activePowerupText = img;
-
-    // Floating offset (so we can animate upward while still following the ship)
     const floatObj = { v: 0 };
-
-    // Follow player while visible
-    const follow = () => {
-        if (!img.active || !player || !player.active) {
-            scene.events.off('update', follow);
-            return;
-        }
-        img.x = player.x;
-        img.y = player.y - 80 + floatObj.v;
-    };
+    const follow = () => { if (!img.active || !player || !player.active) { scene.events.off('update', follow); return; } img.x = player.x; img.y = player.y - 80 + floatObj.v; };
     scene.events.on('update', follow);
-
-    // Move upward after appearing (while holding)
-    scene.tweens.add({
-        targets: floatObj,
-        v: -40,
-        duration: 1000,
-        ease: 'Cubic.easeOut'
-    });
-
-    // Hold 1s total, then fade out quickly (0.25s)
-    scene.tweens.add({
-        targets: img,
-        alpha: 0,
-        duration: 250,
-        delay: 1000,
-        ease: 'Linear',
-        onComplete: () => {
-            try { scene.events.off('update', follow); } catch (e) {}
-            try {
-                if (window._activePowerupText === img) window._activePowerupText = null;
-            } catch (e) {}
-            img.destroy();
-        }
-    });
+    scene.tweens.add({ targets: floatObj, v: -40, duration: 1000, ease: 'Cubic.easeOut' });
+    scene.tweens.add({ targets: img, alpha: 0, duration: 250, delay: 1000, ease: 'Linear', onComplete: () => { try { scene.events.off('update', follow); } catch (e) {} try { if (window._activePowerupText === img) window._activePowerupText = null; } catch (e) {} img.destroy(); } });
 }
 
 function flashPowerupGreen(scene) {
-    // Green flash for ship body + turrets + wheels (like enemy hit flash)
     try {
         const targets = [];
         if (player && player.active) targets.push(player);
         if (wheelLeft && wheelLeft.active) targets.push(wheelLeft);
         if (wheelRight && wheelRight.active) targets.push(wheelRight);
-
-        if (Array.isArray(activeTurrets)) {
-            activeTurrets.forEach(t => { if (t && t.active) targets.push(t); });
-        }
-
-        // Some turrets might be stored in turretSlots
-        if (Array.isArray(turretSlots)) {
-            turretSlots.forEach(s => {
-                if (s && s.turret && s.turret.active) targets.push(s.turret);
-            });
-        }
-
+        if (Array.isArray(activeTurrets)) { activeTurrets.forEach(t => { if (t && t.active) targets.push(t); }); }
+        if (Array.isArray(turretSlots)) { turretSlots.forEach(s => { if (s && s.turret && s.turret.active) targets.push(s.turret); }); }
         if (targets.length === 0) return;
-
-        targets.forEach(s => {
-            // Strong solid flash
-            s.setTintFill(0x000fff0);
-        });
-
-        // Very short duration (visible, but snappy)
-        scene.time.delayedCall(60, () => {
-            targets.forEach(s => { if (s && s.active) s.clearTint(); });
-        });
+        targets.forEach(s => { s.setTintFill(0x000fff0); });
+        scene.time.delayedCall(60, () => { targets.forEach(s => { if (s && s.active) s.clearTint(); }); });
     } catch (e) {}
 }
 
 function collectPickup(player, drop) {
     const scene = drop.scene;
-    // LETTER pickups are auto-collected after a short delay; ignore overlap pickup
     if (drop.dropType === 'LETTER') return;
     setActionLog("Get " + drop.dropType);
     if (drop.dropType === 'HEART') {
-        hp = Math.min(hp + 20, maxHp);
-        showHPSprite(scene);
-        // Same whole-ship flash feedback as POWERUP
-        flashPowerupGreen(scene);
+        hp = Math.min(hp + 20, maxHp); showHPSprite(scene); flashPowerupGreen(scene);
     } else if (drop.dropType === 'TURRET') {
         if (activeTurrets.length < 6) {
             addTurret(scene, drop.specificType); 
-            
-            let msg = drop.specificType;
-            if(msg === 'BOOMERANG') msg = 'SAW!';
+            let msg = drop.specificType; if(msg === 'BOOMERANG') msg = 'SAW!';
             showFloatText(scene, player.x, player.y, msg + "!", COLORS.TURRET);
-        } else {
-            score += 200;
-            showFloatText(scene, player.x, player.y, "+200", COLORS.TURRET);
-        }
+        } else { score += 200; showFloatText(scene, player.x, player.y, "+200", COLORS.TURRET); }
     } else if (drop.dropType === 'POWERUP') {
-        damagePerShot += 1;
-        showPowerupSprite(scene);
-        score += 100;
-        flashPowerupGreen(scene);
+        damagePerShot += 1; showPowerupSprite(scene); score += 100; flashPowerupGreen(scene);
     }
     else if (drop.dropType === 'LETTER') {
         if (!collectedIndices.includes(drop.letterIndex)) {
-            // Fly the collected letter to the HUD slot (replace the '?' there)
             try {
                 if (hnyHudSprites && hnyHudSprites.list && hnyHudSprites.list[drop.letterIndex]) {
                     const hudSpr = hnyHudSprites.list[drop.letterIndex];
-
-                    // Spawn a visual copy that flies to the HUD position
-                    const fly = scene.add.sprite(drop.x, drop.y, 'hnyLetters', drop.letterIndex)
-                        .setOrigin(0.5)
-                        .setScale(drop.scaleX || 0.42)
-                        .setDepth(2000);
-
+                    const fly = scene.add.sprite(drop.x, drop.y, 'hnyLetters', drop.letterIndex).setOrigin(0.5).setScale(drop.scaleX || 0.42).setDepth(2000);
                     const tx = hnyHudSprites.x + hudSpr.x;
                     const ty = hnyHudSprites.y + hudSpr.y;
-
-                    // Keep HUD as '?' until the fly animation completes
                     scene.tweens.add({
-                        targets: fly,
-                        x: tx,
-                        y: ty,
-                        scaleX: hudSpr.scaleX || 0.42,
-                        scaleY: hudSpr.scaleY || 0.42,
-                        duration: 260,
-                        ease: 'Quad.easeInOut',
+                        targets: fly, x: tx, y: ty, scaleX: hudSpr.scaleX || 0.42, scaleY: hudSpr.scaleY || 0.42, duration: 260, ease: 'Quad.easeInOut',
                         onComplete: () => {
                             try { fly.destroy(); } catch (e) {}
-
-                            // Mark collected and update HUD to show the real letter
-                            collectedIndices.push(drop.letterIndex);
-                            updateLetterUI();
-
-                            // Pop + glow on the HUD letter
+                            collectedIndices.push(drop.letterIndex); updateLetterUI();
                             try {
                                 const spr = hnyHudSprites.list[drop.letterIndex];
                                 const baseScale = spr.scaleX || 0.42;
-
-                                scene.tweens.add({
-                                    targets: spr,
-                                    scaleX: baseScale * 1.18,
-                                    scaleY: baseScale * 1.18,
-                                    duration: 90,
-                                    yoyo: true,
-                                    ease: 'Quad.easeOut'
-                                });
-
-                                spr.setBlendMode(Phaser.BlendModes.ADD);
-                                spr.setTintFill(0xffffaa);
-                                scene.time.delayedCall(120, () => {
-                                    if (!spr || !spr.active) return;
-                                    spr.clearTint();
-                                    spr.setBlendMode(Phaser.BlendModes.NORMAL);
-                                });
+                                scene.tweens.add({ targets: spr, scaleX: baseScale * 1.18, scaleY: baseScale * 1.18, duration: 90, yoyo: true, ease: 'Quad.easeOut' });
+                                spr.setBlendMode(Phaser.BlendModes.ADD); spr.setTintFill(0xffffaa);
+                                scene.time.delayedCall(120, () => { if (!spr || !spr.active) return; spr.clearTint(); spr.setBlendMode(Phaser.BlendModes.NORMAL); });
                             } catch (e) {}
                         }
                     });
-
-                    // No immediate HUD update here; it happens after the fly reaches HUD
-                } else {
-                    collectedIndices.push(drop.letterIndex);
-                    updateLetterUI();
-                }
-            } catch (e) {
-                collectedIndices.push(drop.letterIndex);
-                updateLetterUI();
-            }
-
+                } else { collectedIndices.push(drop.letterIndex); updateLetterUI(); }
+            } catch (e) { collectedIndices.push(drop.letterIndex); updateLetterUI(); }
             showFloatText(scene, player.x, player.y, drop.text, COLORS.LETTER);
             score += 500;
         }
     }
-    
     if (drop.shadow) drop.shadow.destroy();
     drop.destroy();
 }
 
 function showFloatText(scene, x, y, msg, color) {
-    const txt = scene.add.text(x, y - 40, msg, { fontSize: '24px', color: (typeof color === 'string' ? color : '#' + color.toString(16)), fontStyle: 'bold', stroke: '#fff', strokeThickness: 3 }).setOrigin(0.5).setDepth(100);
+    const txt = scene.add.text(x, y - 40, msg, { fontSize: '18px', color: (typeof color === 'string' ? color : '#' + color.toString(16)), fontStyle: 'bold', stroke: '#fff', strokeThickness: 3 }).setOrigin(0.5).setDepth(100);
     scene.tweens.add({ targets: txt, y: y - 100, alpha: 0, duration: 800, onComplete: () => txt.destroy() });
 }
 
 function generateTextures(scene) {
     const g = scene.make.graphics({x:0, y:0, add:false});
-    
-    g.clear();
-    g.fillStyle(0x000000, 1);
-    g.fillCircle(16, 16, 14); 
-    g.generateTexture('shadowTex', 32, 32);
-
+    g.clear(); g.fillStyle(0x000000, 1); g.fillCircle(16, 16, 14); g.generateTexture('shadowTex', 32, 32);
     g.clear(); g.fillStyle(0xFFFFFF, 1); g.fillRect(0, 0, 16, 16); g.generateTexture('trailSquare', 16, 16);
-
     g.clear(); g.fillStyle(COLORS.TURRET, 1); g.fillTriangle(24, 12, 0, 0, 0, 24); g.lineStyle(1, 0x000000); g.strokeTriangle(24, 12, 0, 0, 0, 24); g.generateTexture('turretTex', 24, 24);
     g.clear(); g.fillStyle(COLORS.BOOMERANG_RING, 1); g.fillCircle(12, 12, 10); g.lineStyle(2, 0x000000); g.strokeCircle(12, 12, 10); g.generateTexture('boomerangIconTex', 24, 24);
     g.clear(); g.lineStyle(4, COLORS.BOOMERANG_RING); g.strokeCircle(20, 20, 16); g.generateTexture('boomerangProjTex', 40, 40);
@@ -1772,14 +1430,13 @@ function generateTextures(scene) {
     g.clear(); g.fillStyle(COLORS.POWERUP_BG, 1); g.fillRect(0,0,24,24); g.lineStyle(2, 0xffffff); g.strokeRect(0,0,24,24); g.fillStyle(0xffffff, 1); g.fillRect(4, 4, 16, 4); g.fillRect(4, 4, 4, 16); g.fillRect(16, 4, 4, 8); g.fillRect(4, 12, 16, 4); g.generateTexture('powerupTex', 24, 24);
     g.clear(); g.fillStyle(COLORS.HAPPY, 1); g.fillCircle(12, 12, 12); g.fillStyle(0x000000, 1); g.fillCircle(8, 10, 2); g.fillCircle(16, 10, 2); g.beginPath(); g.lineStyle(2, 0x000000); g.arc(12, 12, 6, 0.1*Math.PI, 0.9*Math.PI, false); g.strokePath(); g.generateTexture('happyTex', 24, 24);
     
-    // 模拟生成 4x4 的僵尸行走精灵表 (512x512)
     const zG = scene.make.graphics({x:0, y:0, add:false});
     const size = 128;
     for(let row=0; row<4; row++) {
         for(let col=0; col<4; col++) {
             const cx = col * size + size/2;
             const cy = row * size + size/2;
-            zG.fillStyle(COLORS.ZOMBIE, 1);
+            zG.fillStyle(0x448844, 1);
             zG.fillRect(col*size + 10, row*size + 10, size-20, size-20);
             zG.fillStyle(0xFFFFFF, 1);
             if(col === 0) { zG.fillTriangle(cx-10, cy-10, cx+10, cy-10, cx, cy+20); } 
@@ -1792,33 +1449,29 @@ function generateTextures(scene) {
 }
 
 function createUI(scene) {
-    timeText = scene.add.text(gameConfig.scale.width/2, 60, '60', { fontSize: '64px', fill: '#333', fontStyle: 'bold', stroke: '#fff', strokeThickness: 4 }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
-    hpText = scene.add.text(20, 20, 'HP: 100', { fontSize: '24px', fill: '#FF1493', fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 }).setScrollFactor(0).setDepth(200);
-    scoreText = scene.add.text(20, 55, 'SCORE: 0', { fontSize: '24px', fill: '#333', fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 }).setScrollFactor(0).setDepth(200);
-
-        // Replace bottom HAPPY NEW YEAR text with spritesheet letters
+    timeText = scene.add.text(gameConfig.scale.width/2, 60, '60', { fontSize: '48px', fill: '#333', fontStyle: 'bold', stroke: '#fff', strokeThickness: 4 }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
+    hpText = scene.add.text(20, 20, 'HP: 100', { fontSize: '18px', fill: '#FF1493', fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 }).setScrollFactor(0).setDepth(200);
+    scoreText = scene.add.text(20, 55, 'SCORE: 0', { fontSize: '18px', fill: '#333', fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 }).setScrollFactor(0).setDepth(200);
     letterText = null;
     hnyHudSprites = scene.add.container(scene.scale.width / 2, scene.scale.height - 120).setScrollFactor(0).setDepth(999);
-
-    const hudScale = 0.42; // match dropped letter size
-    const total = targetLetters.length; // 12
-    const spacing = (110 * hudScale + 5) * 0.85;     // letter-to-letter spacing (reduced 30%)
-    const wordGap = spacing * 0.75;         // extra gap between words (HAPPY / NEW / YEAR)
+    const hudScale = 0.42; 
+    const total = targetLetters.length;
+    const spacing = (110 * hudScale + 5) * 0.85;     
+    const wordGap = spacing * 0.75;         
     const totalWidth = ((total - 1) * spacing) + (2 * wordGap);
     const startX = -(totalWidth) / 2;
-
     for (let i = 0; i < total; i++) {
         const extraGap = (i > 4 ? wordGap : 0) + (i > 7 ? wordGap : 0);
         const s = scene.add.sprite(startX + i * spacing + extraGap, 0, 'hnyLetters', i).setDepth(999);
         s.setScale(hudScale);
-        s.setOrigin(0.5);        // show ? if missing
+        s.setOrigin(0.5);        
         if (!collectedIndices.includes(i)) s.setTexture('questionMark');
         hnyHudSprites.add(s);
     }
-    fpsText = scene.add.text(10, gameConfig.scale.height - 30, 'FPS: 60', { fontSize: '18px', fill: '#00aa00', fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 }).setScrollFactor(0).setDepth(500);
-    debugText = scene.add.text(gameConfig.scale.width - 200, 20, '', { fontSize: '14px', fill: '#00ffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 2, align: 'right' }).setScrollFactor(0).setDepth(500).setOrigin(0, 0);
-    comboText = scene.add.text(20, 150, '', { fontSize: '48px', fill: '#FF4500', fontStyle: 'bold', stroke: '#fff', strokeThickness: 6 }).setScrollFactor(0).setDepth(200).setVisible(false);
-    highScoreText = scene.add.text(gameConfig.scale.width - 20, 55, 'BEST: ' + highScore, { fontSize: '24px', fill: '#FFD700', fontStyle: 'bold', stroke: '#333', strokeThickness: 2, align: 'right' }).setScrollFactor(0).setDepth(200).setOrigin(1, 0);
+    fpsText = scene.add.text(10, gameConfig.scale.height - 30, 'FPS: 60', { fontSize: '14px', fill: '#00aa00', fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 }).setScrollFactor(0).setDepth(500);
+    debugText = scene.add.text(gameConfig.scale.width - 200, 20, '', { fontSize: '10px', fill: '#00ffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 2, align: 'right' }).setScrollFactor(0).setDepth(500).setOrigin(0, 0);
+    comboText = scene.add.text(20, 150, '', { fontSize: '36px', fill: '#FF4500', fontStyle: 'bold', stroke: '#fff', strokeThickness: 6 }).setScrollFactor(0).setDepth(200).setVisible(false);
+    highScoreText = scene.add.text(gameConfig.scale.width - 20, 55, 'BEST: ' + highScore, { fontSize: '18px', fill: '#FFD700', fontStyle: 'bold', stroke: '#333', strokeThickness: 2, align: 'right' }).setScrollFactor(0).setDepth(200).setOrigin(1, 0);
 }
 
 function updateTimer() {
@@ -1836,149 +1489,65 @@ function getLetterString() {
 }
 
 function updateLetterUI() {
-    // Update HUD sprites based on collected letters
     if (hnyHudSprites) {
         const kids = hnyHudSprites.list || [];
         for (let i = 0; i < kids.length; i++) {
             const spr = kids[i];
             if (!spr) continue;
-
             if (collectedIndices.includes(i)) {
-                // collected: show the real letter frame
-                spr.setTexture('hnyLetters', i);
-                spr.clearTint();
-                spr.setBlendMode(Phaser.BlendModes.NORMAL);
+                spr.setTexture('hnyLetters', i); spr.clearTint(); spr.setBlendMode(Phaser.BlendModes.NORMAL);
             } else {
-                // missing: show question mark
-                spr.setTexture('questionMark');
-                spr.clearTint();
-                spr.setBlendMode(Phaser.BlendModes.NORMAL);
+                spr.setTexture('questionMark'); spr.clearTint(); spr.setBlendMode(Phaser.BlendModes.NORMAL);
             }
         }
-    } else if (letterText) {
-        letterText.setText(getLetterString());
-    }
+    } else if (letterText) { letterText.setText(getLetterString()); }
 }
 
-
 function startShipDestroyedSequence(scene) {
-    // Prevent double-trigger (don't stop enemy movement yet)
     if (shipDestroyedSequence) return;
     shipDestroyedSequence = true;
-
-    // Cleanup floating POWUP+ prompt (avoid lingering during explosion / game over)
-    try {
-        if (window._activePowerupText && window._activePowerupText.active) {
-            window._activePowerupText.destroy();
-        }
-        if (window._activeHPText && window._activeHPText.active) {
-            window._activeHPText.destroy();
-        }
-        window._activePowerupText = null;
-        window._activeHPText = null;
-    } catch (e) {}
-
-    // Stop gameplay systems (timers / spawns / firing) but keep physics + update running
+    try { if (window._activePowerupText && window._activePowerupText.active) { window._activePowerupText.destroy(); } if (window._activeHPText && window._activeHPText.active) { window._activeHPText.destroy(); } window._activePowerupText = null; window._activeHPText = null; } catch (e) {}
     try { if (timerEvent) { timerEvent.remove(); } } catch (e) {}
-    try { if (spawnEvent) { spawnEvent.remove(); } } catch (e) {}
     try { if (fireEvent) { fireEvent.remove(); } } catch (e) {}
     try { if (comboTimerEvent) { comboTimerEvent.remove(); } } catch (e) {}
-
-    // Stop timers/spawners if they exist (so nothing else happens)
-    try { if (timerEvent) timerEvent.remove(); } catch (e) {}
-    try { if (spawnEvent) spawnEvent.remove(); } catch (e) {}
-    try { if (fireEvent) fireEvent.remove(); } catch (e) {}
-    try { if (comboTimerEvent) comboTimerEvent.remove(); } catch (e) {}
-
-    // Freeze player on the spot
-    try {
-        if (player && player.body) {
-            player.setVelocity(0);
-            player.body.enable = false;
-        }
-    } catch (e) {}
-
-    // Play random explosions on top of the ship for ~2 seconds
+    try { if (player && player.body) { player.setVelocity(0); player.body.enable = false; } } catch (e) {}
     const DURATION_MS = 2000;
     const INTERVAL_MS = 180;
-
     const startTime = scene.time.now;
     const spawnOne = () => {
         if (!scene || !scene.add) return;
         const baseX = player?.x ?? (CONFIG.WIDTH / 2);
         const baseY = player?.y ?? (CONFIG.HEIGHT / 2);
-
-        // Spread explosions across hull + wheels (not just ship center)
         const w = (player?.displayWidth || player?.width || 140);
         const h = (player?.displayHeight || player?.height || 140);
-
-        // Candidate anchor points relative to the ship sprite (approx hull + wheel zones)
-        const points = [
-            { x: 0.0,  y: 0.0 },            // center
-            { x: 0.0,  y: -0.28 },          // front hull
-            { x: 0.0,  y: 0.26 },           // rear hull
-            { x: -0.26, y: -0.02 },         // left hull
-            { x: 0.26,  y: -0.02 },         // right hull
-
-            // Wheel-ish zones (tuned to your top-down ship silhouette)
-            { x: -0.34, y: -0.12 },         // left-front wheel
-            { x:  0.34, y: -0.12 },         // right-front wheel
-            { x: -0.40, y:  0.18 },         // left-rear wheel
-            { x:  0.40, y:  0.18 },         // right-rear wheel
-            { x:  0.00, y:  0.34 }          // rear-center wheel / bumper
-        ];
-
+        const points = [ { x: 0.0,  y: 0.0 }, { x: 0.0,  y: -0.28 }, { x: 0.0,  y: 0.26 }, { x: -0.26, y: -0.02 }, { x: 0.26,  y: -0.02 }, { x: -0.34, y: -0.12 }, { x:  0.34, y: -0.12 }, { x: -0.40, y:  0.18 }, { x:  0.40, y:  0.18 }, { x:  0.00, y:  0.34 } ];
         const p = points[Phaser.Math.Between(0, points.length - 1)];
-
-        // Jitter around the chosen point
         const jitterX = Phaser.Math.Between(-Math.max(16, w * 0.08), Math.max(16, w * 0.08));
         const jitterY = Phaser.Math.Between(-Math.max(16, h * 0.08), Math.max(16, h * 0.08));
-
-        // Final offset in world pixels
         const ox = p.x * w + jitterX;
         const oy = p.y * h + jitterY;
-
         const boom = scene.add.sprite(baseX + ox, baseY + oy, 'explosion8', 0);
-        boom.setDepth(9999);
-        boom.setScale(0.9 + Math.random() * 0.4);
-        boom.play('explosion_play');
-
-        boom.once('animationcomplete', () => {
-            boom.destroy();
-        });
+        boom.setDepth(9999); boom.setScale(0.9 + Math.random() * 0.4); boom.play('explosion_play');
+        boom.once('animationcomplete', () => { boom.destroy(); });
     };
-
-    // Spawn a couple immediately so player sees it instantly
     spawnOne();
     scene.time.delayedCall(90, spawnOne);
-
     const loop = scene.time.addEvent({
-        delay: INTERVAL_MS,
-        loop: true,
+        delay: INTERVAL_MS, loop: true,
         callback: () => {
             const elapsed = scene.time.now - startTime;
-            if (elapsed >= DURATION_MS) {
-                loop.remove();
-                // After 2 seconds, show result page
-                doGameOver(scene, false);
-                return;
-            }
-            // Randomly 1~2 explosions per tick
-            spawnOne();
-            if (Math.random() < 0.35) spawnOne();
+            if (elapsed >= DURATION_MS) { loop.remove(); doGameOver(scene, false); return; }
+            spawnOne(); if (Math.random() < 0.35) spawnOne();
         }
     });
 }
-
 
 function doGameOver(scene, win) {
     gameOver = true;
     try { scene.physics.pause(); } catch (e) {}
     try { if (timerEvent) { timerEvent.remove(); } } catch (e) {}
-    try { if (spawnEvent) { spawnEvent.remove(); } } catch (e) {}
     try { if (fireEvent) { fireEvent.remove(); } } catch (e) {}
     try { if (comboTimerEvent) { comboTimerEvent.remove(); } } catch (e) {}
-
     const overlay = document.getElementById('game-over-ui');
     const goScore = document.getElementById('go-score');
     const goBest = document.getElementById('go-best');    const goLetters = document.getElementById('go-letters');
@@ -1986,25 +1555,22 @@ function doGameOver(scene, win) {
     goScore.innerText = score;
     if (score > highScore) { saveHighScore(score); }
     goBest.innerText = highScore;
-try { renderHappyNewYearSpritesDOM(new Set(collectedIndices || [])); } catch (e) {}
+    try { renderHappyNewYearSpritesDOM(new Set(collectedIndices || [])); } catch (e) {}
     let letterStr = "";
     for(let i=0; i<targetLetters.length; i++) { if (collectedIndices.includes(i)) letterStr += targetLetters[i] + " "; else letterStr += "_ "; }
     goLetters.innerText = '';
     if (win) { goTitle.innerText = "HAPPY NEW YEAR!"; goTitle.style.color = "#FFD700"; } else { goTitle.innerText = "GAME OVER"; goTitle.style.color = "#FF0000"; }
     overlay.style.display = 'flex';
-    // Leaderboard (Firebase) on game over
     try {
         window.LeaderboardAPI?.open?.({ score, nameInputId: 'player-name-input' });
     } catch (e) {}
-
 }
 </script>
 
-
+<!-- FIREBASE & LEADERBOARD (FINAL WASD & ENTER FIX & MY RANK UI) -->
 <script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore-compat.js"></script>
 <script>
-  // Firebase Firestore Leaderboard (Compat build, no ES module imports)
   (function () {
     const firebaseConfig = {
       apiKey: "AIzaSyBIOQqxS5fCFMLhkxXM4gQkfiANpLrNUV4",
@@ -2016,296 +1582,268 @@ try { renderHappyNewYearSpritesDOM(new Set(collectedIndices || [])); } catch (e)
     };
 
     function $(id){ return document.getElementById(id); }
+    function logDebug(action, value) { const time = new Date().toLocaleTimeString(); console.log(`%c[${time}] ${action}:`, "color: #00ff00; font-weight: bold;", value); }
 
-    // UI elements (support both new and legacy ids)
     function getStatusEl(){ return $("lb-status") || $("lb-placeholder-text"); }
-    function getListEl(){
-      let el = $("lb-top10");
-      if (!el) {
-        const section = $("leaderboard-section");
-        if (section) {
-          el = document.createElement("div");
-          el.id = "lb-top10";
-          section.appendChild(el);
-        }
-      }
-      return el;
-    }
+    function getListEl(){ return $("lb-top10"); }
 
     function setStatus(msg) {
-      const el = getStatusEl();
-      if (!el) return;
-      if (el.id === "lb-placeholder-text") el.innerHTML = String(msg || "").replace(/\\n/g, "<br>");
-      else el.textContent = msg || "";
+      const el = getStatusEl(); if (!el) return;
+      if (el.id === "lb-placeholder-text") el.innerHTML = String(msg || "").replace(/\\n/g, "<br>"); else el.textContent = msg || "";
     }
 
-    function sanitizeName(name) {
-      return String(name || "")
-        .trim()
-        .replace(/\\s+/g, " ")
-        .replace(/[^\\w \\-\\u4e00-\\u9fff]/g, "")
-        .slice(0, 12);
+    function sanitizeName(name) { 
+        return String(name || "").trim().replace(/\s+/g, " ").replace(/[^\w \-\u4e00-\u9fff]/g, "").slice(0, 12); 
     }
 
-    function isNameLocked() {
-      try { return localStorage.getItem("zr_name_locked") === "1"; } catch (e) { return false; }
-    }
-
-    function lockName(name) {
-      try {
-        if (name) {
-          localStorage.setItem("zr_player_name", name);
-          localStorage.setItem("lb_name", name);
-          localStorage.setItem("zr_name_locked", "1");
-        }
-      } catch (e) {}
+    function isNameLocked() { try { return localStorage.getItem("zr_name_locked") === "1"; } catch (e) { return false; } }
+    
+    function lockName(name) { 
+        try { if (name) { localStorage.setItem("zr_player_name", name); localStorage.setItem("lb_name", name); localStorage.setItem("zr_name_locked", "1"); } } catch (e) {} 
     }
 
     function applyNameLockUI(inputEl) {
       if (!inputEl) return;
       const locked = isNameLocked();
-      if (locked) {
-        inputEl.readOnly = true;
-        inputEl.disabled = true;
-        inputEl.style.opacity = "0.75";
-        inputEl.style.cursor = "not-allowed";
-      } else {
-        inputEl.readOnly = false;
-        inputEl.disabled = false;
-        inputEl.style.opacity = "1";
-        inputEl.style.cursor = "text";
-      }
+      if (locked) { inputEl.readOnly = true; inputEl.disabled = true; inputEl.classList.add('nickname-locked'); } 
+      else { inputEl.readOnly = false; inputEl.disabled = false; inputEl.classList.remove('nickname-locked'); }
     }
 
     function prefillName(inputEl) {
-      try {
-        const saved = localStorage.getItem("zr_player_name") || localStorage.getItem("lb_name") || "";
-        if (saved && inputEl) inputEl.value = saved;
-      } catch (e) {}
+      try { const saved = localStorage.getItem("zr_player_name") || localStorage.getItem("lb_name") || ""; if (saved && inputEl) { inputEl.value = saved; } } catch (e) {}
       applyNameLockUI(inputEl);
     }
 
-    function ensureListStyles() {
-      const listEl = getListEl();
-      if (!listEl) return;
-      // If you didn't inject the CSS blocks, add minimal inline styling here.
-      if (!listEl.classList.contains("lb-ready")) {
-        listEl.classList.add("lb-ready");
-        listEl.style.width = "90%";
-        listEl.style.maxWidth = "420px";
-        listEl.style.display = "flex";
-        listEl.style.flexDirection = "column";
-        listEl.style.gap = "8px";
-        listEl.style.paddingBottom = "20px";
-      }
-    }
-
     function renderTop10(rows) {
-      const listEl = getListEl();
-      if (!listEl) return;
-      ensureListStyles();
-      listEl.innerHTML = "";
-
-      if (!rows || rows.length === 0) {
-        const d = document.createElement("div");
-        d.style.color = "#888";
-        d.style.fontStyle = "italic";
-        d.textContent = "No scores yet.";
-        listEl.appendChild(d);
-        return;
-      }
-
+      const listEl = getListEl(); if (!listEl) return; listEl.innerHTML = "";
+      if (!rows || rows.length === 0) { const d = document.createElement("div"); d.style.color = "#888"; d.style.fontStyle = "italic"; d.textContent = "No scores yet."; listEl.appendChild(d); return; }
       rows.forEach((r, i) => {
-        const item = document.createElement("div");
-        item.style.display = "flex";
-        item.style.justifyContent = "space-between";
-        item.style.alignItems = "baseline";
-        item.style.padding = "10px 12px";
-        item.style.borderRadius = "10px";
-        item.style.border = "1px solid rgba(255,255,255,0.18)";
-        item.style.background = "rgba(0,0,0,0.25)";
-        item.style.fontSize = "16px";
-
-        const left = document.createElement("div");
-        left.style.display = "flex";
-        left.style.gap = "10px";
-        left.style.alignItems = "baseline";
-        left.style.overflow = "hidden";
-
-        const rank = document.createElement("div");
-        rank.style.minWidth = "44px";
-        rank.style.color = "#FFD700";
-        rank.style.fontWeight = "900";
-        rank.textContent = "#"+(i+1);
-
-        const name = document.createElement("div");
-        name.style.color = "#fff";
-        name.style.fontWeight = "800";
-        name.style.whiteSpace = "nowrap";
-        name.style.overflow = "hidden";
-        name.style.textOverflow = "ellipsis";
-        name.style.maxWidth = "220px";
-        name.textContent = r.nickname || "???";
-
-        left.appendChild(rank);
-        left.appendChild(name);
-
-        const score = document.createElement("div");
-        score.style.color = "#FFD700";
-        score.style.fontWeight = "900";
-        score.textContent = String(r.score ?? 0);
-
-        item.appendChild(left);
-        item.appendChild(score);
-        listEl.appendChild(item);
+        const item = document.createElement("div"); item.className = "lb-item";
+        const left = document.createElement("div"); left.className = "lb-left";
+        const rank = document.createElement("div"); rank.className = "lb-rank"; rank.textContent = "#"+(i+1);
+        const name = document.createElement("div"); name.className = "lb-name"; name.textContent = r.nickname || "???";
+        left.appendChild(rank); left.appendChild(name);
+        const score = document.createElement("div"); score.className = "lb-score"; score.textContent = String(r.score ?? 0);
+        item.appendChild(left); item.appendChild(score); listEl.appendChild(item);
       });
     }
 
-    // Init Firebase (compat)
-    try {
-      firebase.initializeApp(firebaseConfig);
-    } catch (e) {
-      // Ignore "already exists"
-    }
+    try { firebase.initializeApp(firebaseConfig); } catch (e) {}
     const db = firebase.firestore();
 
+    // MODIFIED: Remove secondary sort to show all high scores
     async function loadTop10() {
-      // Requires composite index for score desc + createdAt desc
-      const snap = await db.collection("scores")
-        .orderBy("score", "desc")
-        .orderBy("updatedAt", "desc")
-        .limit(10)
-        .get();
-
+      const snap = await db.collection("scores").orderBy("score", "desc").limit(10).get();
       return snap.docs.map(d => d.data());
     }
 
-    async function refreshTop10() {
-      try {
-        setStatus("Loading Top 10...");
-        const rows = await loadTop10();
-        renderTop10(rows);
-        setStatus("");
-      } catch (e) {
-        console.warn(e);
-        setStatus("Leaderboard error: " + (e.message || e));
-      }
+    // New Function to refresh BOTH Top 10 AND My Rank
+    async function refreshTop10AndMyRank(myName) {
+      try { 
+          setStatus("Loading..."); 
+          const rows = await loadTop10(); 
+          renderTop10(rows); 
+          setStatus(""); 
+          
+          if (myName) {
+              await refreshMyRank(myName, rows);
+          }
+      } catch (e) { console.warn(e); setStatus("Leaderboard error: " + (e.message || e)); }
+    }
+
+    async function refreshMyRank(name, topRows) {
+        const container = $("lb-my-rank-container");
+        if (!container) return;
+        // Keep clear at start for logic simplicity as requested in revert
+        container.innerHTML = ''; 
+
+        try {
+            const ref = db.collection("scores").doc(name);
+            const snap = await ref.get();
+            if (!snap.exists) return; 
+
+            const myData = snap.data();
+            const myBest = myData.score || 0;
+            
+            // Check if I am in Top 10 list first (Visual Consistency)
+            let rankDisplay = "?";
+            let foundIndex = -1;
+            
+            if (topRows && topRows.length > 0) {
+                foundIndex = topRows.findIndex(r => r.nickname === name);
+            }
+
+            if (foundIndex !== -1) {
+                rankDisplay = "#" + (foundIndex + 1);
+            } else {
+                // Fallback query if not in top 10
+                try {
+                    const snapshot = await db.collection('scores').where('score', '>', myBest).get();
+                    rankDisplay = "#" + (snapshot.size + 1);
+                } catch(e) { console.log("Rank calc error", e); }
+            }
+
+            const item = document.createElement("div"); 
+            item.className = "lb-item my-rank-row"; 
+            
+            const left = document.createElement("div"); 
+            left.className = "lb-left";
+            
+            const rank = document.createElement("div"); 
+            rank.className = "lb-rank"; 
+            rank.textContent = rankDisplay;
+            
+            const nDiv = document.createElement("div"); 
+            nDiv.className = "lb-name"; 
+            nDiv.textContent = name;
+            
+            left.appendChild(rank); 
+            left.appendChild(nDiv);
+            
+            const score = document.createElement("div"); 
+            score.className = "lb-score"; 
+            score.textContent = String(myBest);
+            
+            item.appendChild(left); 
+            item.appendChild(score); 
+            
+            // Double clear just to be safe against race conditions (kept from your fix)
+            container.innerHTML = '';
+            container.appendChild(item);
+
+        } catch(e) {}
     }
 
     async function submitScore(nickname, score) {
       const name = sanitizeName(nickname);
       const sc = Math.max(0, Math.floor(Number(score) || 0));
       if (!name) throw new Error("Please enter a nickname.");
-
-      // Same-name only keeps the highest score:
-      // Use document id = nickname, update only when new score is higher.
+      logDebug("API Submitting", { name: name, score: sc });
       const ref = db.collection("scores").doc(name);
-
       return await db.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
-
-        if (!snap.exists) {
-          tx.set(ref, {
-            nickname: name,
-            score: sc,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-          return { written: true, reason: "first", prevScore: 0 };
-        }
-
-        const prev = snap.data() || {};
-        const prevScore = Number(prev.score || 0);
-
-        if (sc > prevScore) {
-          tx.set(ref, {
-            nickname: name,
-            score: sc,
-            createdAt: prev.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
-          return { written: true, reason: "improved", prevScore };
-        }
-
+        if (!snap.exists) { tx.set(ref, { nickname: name, score: sc, createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }); return { written: true, reason: "first", prevScore: 0 }; }
+        const prev = snap.data() || {}; const prevScore = Number(prev.score || 0);
+        if (sc > prevScore) { tx.set(ref, { nickname: name, score: sc, createdAt: prev.createdAt || firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true }); return { written: true, reason: "improved", prevScore }; }
         return { written: false, reason: "not_higher", prevScore };
       });
     }
 
-    // Bind submit button
-    function bindUI() {
-      const submitBtn = $("submit-score-btn");
-      const nameInput = $("player-name-input");
-      if (nameInput) {
-        nameInput.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" && submitBtn) submitBtn.click();
-        });
+    let __autoSubmitPromise = null; let __submittedForThisOpen = false;
+    function getFreshInputValue() { const el = $("player-name-input"); if (!el) return ""; return el.value; }
+
+    function updateNameUI() {
+      const inputEl = $("player-name-input"); 
+      const currentVal = inputEl ? inputEl.value : "";
+      let saved = ""; try { saved = (localStorage.getItem("zr_player_name") || localStorage.getItem("lb_name") || "").trim(); } catch(e) {}
+      
+      const effectiveName = currentVal.trim() || saved; 
+      const cleanName = sanitizeName(effectiveName);
+
+      if (cleanName && inputEl) {
+          inputEl.value = cleanName;
+          applyNameLockUI(inputEl);
       }
-      if (submitBtn) {
-        submitBtn.addEventListener("click", async () => {
-          try {
-            submitBtn.disabled = true;
-            setStatus("Submitting...");
-
-            const inputEl = $("player-name-input");
-            const name = sanitizeName(inputEl ? inputEl.value : "");
-            if (inputEl) inputEl.value = name;
-
-            // Keep old name if locked
-            if (isNameLocked()) {
-              try {
-                const saved = localStorage.getItem("zr_player_name") || localStorage.getItem("lb_name") || "";
-                if (saved) {
-                  if (inputEl) inputEl.value = saved;
-                }
-              } catch (e) {}
-            }
-
-            const finalName = sanitizeName(inputEl ? inputEl.value : name);
-
-            const sc = window.__GAME_SCORE__ ?? 0;
-            const result = await submitScore(finalName, sc);
-
-            // Lock name after first successful submit (or any attempt)
-            lockName(finalName);
-            prefillName(inputEl);
-
-            if (result && result.written) {
-              setStatus("Saved! Refreshing Top 10...");
-              await refreshTop10();
-              setStatus("Done.");
-            } else {
-              setStatus(`Not saved (best: ${result?.prevScore ?? 0}).`);
-            }
-          } catch (e) {
-            console.warn(e);
-            setStatus(e.message || "Submit failed.");
-          } finally {
-            if (submitBtn) submitBtn.disabled = false;
-          }
-        });
-      }
+      return cleanName;
     }
 
-    // Public API for game to call at Game Over
+    async function autoSubmitIfPossible() {
+      if (__submittedForThisOpen) return; 
+      
+      const inputEl = $("player-name-input"); 
+      try { if (inputEl) inputEl.blur(); } catch(e){} 
+      
+      if (inputEl) {
+          inputEl.readOnly = true;
+          inputEl.disabled = true;
+          inputEl.classList.add('nickname-locked');
+      }
+      
+      await new Promise(res => setTimeout(res, 50));
+
+      const rawValue = getFreshInputValue();
+      logDebug("Submit Triggered", `Raw DOM Value: "${rawValue}"`);
+      const name = sanitizeName(rawValue); const sc = window.__GAME_SCORE__ ?? 0;
+      
+      if (!name) { 
+          setStatus("Enter your name to save score."); 
+          if (inputEl) { inputEl.readOnly = false; inputEl.disabled = false; inputEl.classList.remove('nickname-locked'); }
+          return; 
+      }
+      
+      try { 
+          localStorage.setItem("zr_player_name", name); 
+          localStorage.setItem("zr_name_locked", "1"); 
+          logDebug("LocalStorage Updated", name); 
+      } catch(e){}
+      
+      __submittedForThisOpen = true;
+      setStatus("Submitting...");
+
+      __autoSubmitPromise = (async () => {
+        const result = await submitScore(name, sc); lockName(name); 
+        setStatus(result && result.written ? "Saved!" : `Best kept: ${result?.prevScore ?? 0}`); 
+        // Trigger BOTH updates here
+        await refreshTop10AndMyRank(name);
+        return result;
+      })().catch((e) => { 
+          console.warn(e); 
+          setStatus(e.message || "Submit failed."); 
+          __submittedForThisOpen = false; 
+      });
+      return __autoSubmitPromise;
+    }
+
+    function bindUI() {
+      const nameInput = $("player-name-input"); if (!nameInput) return;
+      
+      // Stop ALL keys from reaching Phaser
+      const stopProp = (e) => { e.stopPropagation(); };
+
+      nameInput.addEventListener("keydown", async (e) => { 
+          e.stopPropagation();
+          if (e.key === "Enter" || e.keyCode === 13) {
+              if (e.isComposing) return; 
+              e.preventDefault(); 
+              logDebug("Key pressed", "ENTER (Immediate Submit)");
+              await autoSubmitIfPossible();
+          }
+      });
+
+      ['keypress', 'keyup'].forEach(evt => nameInput.addEventListener(evt, stopProp));
+      ['pointerdown','pointerup','mousedown','mouseup','touchstart','touchend'].forEach(evt => nameInput.addEventListener(evt, stopProp));
+
+      nameInput.addEventListener("input", (e) => { logDebug("Typing", e.target.value); });
+      nameInput.addEventListener("blur", (e) => { 
+          logDebug("Blur", e.target.value); 
+          if (e.target.value.trim().length > 0 && !__submittedForThisOpen) { autoSubmitIfPossible(); } 
+      });
+      updateNameUI();
+    }
+
     window.LeaderboardAPI = {
       open: async function ({ score, nameInputId }) {
-        const inputEl = document.getElementById(nameInputId);
-        prefillName(inputEl);
-        window.__GAME_SCORE__ = score;
-        await refreshTop10();
+        const inputEl = document.getElementById(nameInputId); prefillName(inputEl); window.__GAME_SCORE__ = score;
+        __submittedForThisOpen = false; 
+        bindUI(); 
+        const name = updateNameUI(); 
+        
+        // Initial load (pass name to try loading my rank if exists)
+        await refreshTop10AndMyRank(name);
+
+        if (!isNameLocked()) {
+             setStatus("Enter your name to save score."); try { if (inputEl) inputEl.focus(); } catch(e){} 
+        } else {
+             autoSubmitIfPossible();
+        }
       },
-      refreshTop10
+      beforePlayAgain: async function () { return await (__autoSubmitPromise || autoSubmitIfPossible() || Promise.resolve()); },
+      refreshTop10: () => refreshTop10AndMyRank(getFreshInputValue())
     };
-
-    // Bind once DOM is ready
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", bindUI);
-    } else {
-      bindUI();
-    }
-
-    // If you want it to attempt loading immediately:
-    refreshTop10();
+    if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", bindUI); } else { bindUI(); }
+    
+    // Initial check (don't know name yet)
+    refreshTop10AndMyRank(null);
     setStatus("Checking server...");
   })();
 </script>
