@@ -361,7 +361,9 @@ let droppedCounts = { powerup: 0, heart: 0 };
 let comboCount = 0;
 let comboTimerEvent = null;
 // UI Elements
-let timeText, hpText, scoreText, highScoreText, letterText, fpsText, debugText;
+let timeText, timeDigitTens, timeDigitOnes, hpText, scoreText, highScoreText, letterText, fpsText, debugText;
+let hudBg = null;
+let uiIntroTargets = null;
 let clockIcon, hpIcon;
 
 let hnyHudSprites = null;
@@ -377,6 +379,7 @@ function preload() {
     this.load.image('playerTex', 'assets/boat.png');
     this.load.spritesheet('explosion8', 'assets/ark_explosion.png', { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet('hnyLetters', 'assets/text_happynewyear.png', { frameWidth: 110, frameHeight: 128 });
+    this.load.spritesheet('countdownNumbers', 'assets/text_number.png', { frameWidth: 110, frameHeight: 128 });
     this.load.image('questionMark', 'assets/text_question.png');
     this.load.image('textPowerup', 'assets/text_powerup.png');
     this.load.image('textHP', 'assets/text_HP+.png');
@@ -595,7 +598,8 @@ function startGameLogic(scene) {
     gameStarted = true;
     scene.tweens.add({ targets: startText, alpha: 0, duration: 300, onComplete: () => startText.destroy() });
     scene.tweens.add({ targets: startLogo, y: -200, duration: 1000, ease: 'Back.in', onComplete: () => startLogo.setVisible(false) });
-    spawnZombieWave(scene);
+    scene.time.delayedCall(1000, () => runHUDIntro(scene));
+spawnZombieWave(scene);
     timerEvent = scene.time.addEvent({ delay: 1000, callback: updateTimer, callbackScope: scene, loop: true });
     fireEvent = scene.time.addEvent({ delay: CONFIG.FIRE_RATE, callback: fireTurrets, callbackScope: scene, loop: true });
 }
@@ -723,7 +727,7 @@ function update(time, delta) {
     }
     
     // MODIFIED: Update HUD Text
-    hpText.setText(`x${Math.floor(hp)}`); 
+    hpText.setText(`x${Math.max(0,Math.floor(hp))}`); 
     
     // Zero-pad the score to 6 digits (e.g. 000123)
     let sStr = String(score).padStart(6, '0');
@@ -1465,7 +1469,28 @@ function generateTextures(scene) {
 
 function createUI(scene) {
     // MODIFIED: UI Layout Update (Pixel Font, Icons)
+
+    // 1. Background Boxes (New)
+    hudBg = scene.add.graphics();
+    hudBg.setScrollFactor(0);
+    hudBg.setDepth(160); // 层级，在文字下面(文字是200)
     
+    // 设置颜色和透明度
+    // 0x000000 是黑色
+    // 0.5 是透明度 (0.0 完全透明 ~ 1.0 不透明)
+    hudBg.fillStyle(0x000000, 0.5); 
+    
+    // === HP 的背景框 (左上角) ===
+    // 参数顺序: (x坐标, y坐标, 宽度, 高度, 圆角半径)
+    // 目前尺寸: 宽130, 高50
+    hudBg.fillRoundedRect(-50, -115, 130, 45, 8);
+
+    // === Score 的背景框 (右上角) ===
+    // x坐标计算: 屏幕总宽(540) - 260 = 280
+    // 目前尺寸: 宽250, 高50
+    hudBg.fillRoundedRect(gameConfig.scale.width - 230, -115, 290, 45, 8);
+
+
     // 1. HP Icon + Text (Top Left)
     const uiY_Row1 = -90;
     
@@ -1480,7 +1505,7 @@ function createUI(scene) {
     scoreText = scene.add.text(gameConfig.scale.width +50, uiY_Row1, 'SCORE: 0', { 
         fontSize: '20px', 
         fontFamily: '"Press Start 2P"', 
-        fill: '#2b3aff' 
+        fill: '#FFFFFF' 
     }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(200);
 
     // 3. Clock + Time (Bottom Center - Row 2)
@@ -1488,18 +1513,54 @@ function createUI(scene) {
     const centerX = gameConfig.scale.width / 2;
     
     // Icon (Left of text)
-    clockIcon = scene.add.image(centerX - 55, uiY_Row2, 'clockTex').setScrollFactor(0).setDepth(200).setScale(2);
     // Text (Right of icon)
-    timeText = scene.add.text(centerX - 10, uiY_Row2 + 5, '60', { 
-        fontSize: '55px', 
+    // Countdown digits (spritesheet 0-9)
+    const digitScale = 0.6;
+    const digitW = 110 * digitScale;
+    const digitGap = -10;
+    // Keep the original timeText (hidden) for compatibility, but we no longer use it for rendering
+    timeText = scene.add.text(centerX - 10, uiY_Row2 + 5, '', { 
+        fontSize: '1px', 
         fontFamily: '"Press Start 2P"', 
-        fill: '#ff0000'
-    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(200);
-    
-    // Bottom Letter HUD
+        fill: '#000000'
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(200).setVisible(false);
+
+    timeDigitTens = scene.add.sprite(centerX - 70, uiY_Row2 + 10, 'countdownNumbers', 6)
+        .setOrigin(0, 0.5).setScrollFactor(0).setDepth(200).setScale(digitScale);
+
+    timeDigitOnes = scene.add.sprite(centerX - 70 + digitW + digitGap, uiY_Row2 + 10, 'countdownNumbers', 0)
+        .setOrigin(0, 0.5).setScrollFactor(0).setDepth(200).setScale(digitScale);
+// Bottom Letter HUD
     letterText = null;
     hnyHudSprites = scene.add.container(scene.scale.width / 2, scene.scale.height - 120).setScrollFactor(0).setDepth(999);
-    const hudScale = 0.42; 
+    
+    // === UI Intro Animation Setup (HUD hidden until game starts) ===
+    uiIntroTargets = {
+        hudBgY: hudBg ? hudBg.y : 0,
+        hpIconY: hpIcon ? hpIcon.y : 0,
+        hpTextY: hpText ? hpText.y : 0,
+        scoreTextY: scoreText ? scoreText.y : 0,
+        timeTextY: timeText ? timeText.y : 0,
+        timeDigitTensY: timeDigitTens ? timeDigitTens.y : 0,
+        timeDigitOnesY: timeDigitOnes ? timeDigitOnes.y : 0,
+        hnyHudY: hnyHudSprites ? hnyHudSprites.y : 0
+    };
+
+    const TOP_OFF = -220; // fly-in from above
+    const BOTTOM_OFF = 260; // fly-in from below
+
+    // Hide top HUD (HP / SCORE / TIMER) until game starts
+    if (hudBg) { hudBg.y = uiIntroTargets.hudBgY + TOP_OFF; hudBg.setVisible(false); }
+    if (hpIcon) { hpIcon.y = uiIntroTargets.hpIconY + TOP_OFF; hpIcon.setVisible(false); }
+    if (hpText) { hpText.y = uiIntroTargets.hpTextY + TOP_OFF; hpText.setVisible(false); }
+    if (scoreText) { scoreText.y = uiIntroTargets.scoreTextY + TOP_OFF; scoreText.setVisible(false); }
+    if (timeText) { timeText.y = uiIntroTargets.timeTextY + TOP_OFF; timeText.setVisible(false); }
+    if (timeDigitTens) { timeDigitTens.y = uiIntroTargets.timeDigitTensY + TOP_OFF; timeDigitTens.setVisible(false); }
+    if (timeDigitOnes) { timeDigitOnes.y = uiIntroTargets.timeDigitOnesY + TOP_OFF; timeDigitOnes.setVisible(false); }
+
+    // Hide bottom HNY HUD until game starts
+    if (hnyHudSprites) { hnyHudSprites.y = uiIntroTargets.hnyHudY + BOTTOM_OFF; hnyHudSprites.setVisible(false); }
+const hudScale = 0.42; 
     const total = targetLetters.length;
     const spacing = (110 * hudScale + 5) * 0.85;     
     const wordGap = spacing * 0.75;         
@@ -1522,9 +1583,47 @@ function createUI(scene) {
     // REMOVED High Score Text from HUD
 }
 
+
+function runHUDIntro(scene) {
+    if (!uiIntroTargets) return;
+
+    const DUR = 220;
+    const DELAY = 0; // delay handled by caller
+    const EASE = 'Back.out';
+
+    // Make visible before tween
+    if (hudBg) hudBg.setVisible(true);
+    if (hpIcon) hpIcon.setVisible(true);
+    if (hpText) hpText.setVisible(true);
+    if (scoreText) scoreText.setVisible(true);
+    if (timeText) timeText.setVisible(true);
+    if (timeDigitTens) timeDigitTens.setVisible(true);
+    if (timeDigitOnes) timeDigitOnes.setVisible(true);
+    if (hnyHudSprites) hnyHudSprites.setVisible(true);
+
+    // Top HUD fly in from above
+    if (hudBg) scene.tweens.add({ targets: hudBg, y: uiIntroTargets.hudBgY, duration: DUR, delay: DELAY, ease: EASE });
+    if (hpIcon) scene.tweens.add({ targets: hpIcon, y: uiIntroTargets.hpIconY, duration: DUR, delay: DELAY, ease: EASE });
+    if (hpText) scene.tweens.add({ targets: hpText, y: uiIntroTargets.hpTextY, duration: DUR, delay: DELAY, ease: EASE });
+    if (scoreText) scene.tweens.add({ targets: scoreText, y: uiIntroTargets.scoreTextY, duration: DUR, delay: DELAY, ease: EASE });
+    if (timeText) scene.tweens.add({ targets: timeText, y: uiIntroTargets.timeTextY, duration: DUR, delay: DELAY, ease: EASE });
+    if (timeDigitTens) scene.tweens.add({ targets: timeDigitTens, y: uiIntroTargets.timeDigitTensY, duration: DUR, delay: DELAY, ease: EASE });
+    if (timeDigitOnes) scene.tweens.add({ targets: timeDigitOnes, y: uiIntroTargets.timeDigitOnesY, duration: DUR, delay: DELAY, ease: EASE });
+
+    // Bottom HNY fly in from below
+    if (hnyHudSprites) scene.tweens.add({ targets: hnyHudSprites, y: uiIntroTargets.hnyHudY, duration: DUR, delay: DELAY, ease: EASE });
+}
+
+
 function updateTimer() {
     if (gameOver) return;
-    gameTime--; timeText.setText(gameTime);
+    gameTime--;
+    // Update countdown digit sprites (always force-read from gameTime)
+    const t = Math.max(0, Math.floor(gameTime));
+    const tens = Math.floor(t / 10);
+    const ones = t % 10;
+    if (timeDigitTens) timeDigitTens.setFrame(Math.max(0, Math.min(9, tens)));
+    if (timeDigitOnes) timeDigitOnes.setFrame(Math.max(0, Math.min(9, ones)));
     if (gameTime <= 0) doGameOver(this, true);
 }
 
