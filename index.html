@@ -1694,7 +1694,12 @@ comboCount++;
     comboTimerEvent = enemy.scene.time.delayedCall(CONFIG.COMBO_TIMEOUT, resetCombo, [], enemy.scene);
     updateComboUI(); 
     let killScore = 10 + (comboCount * 2);
-    score += killScore;
+
+    // 【修复】如果正在播放死亡动画(shipDestroyedSequence)或游戏结束(gameOver)，不再加分
+    if (!shipDestroyedSequence && !gameOver) {
+        score += killScore;
+    }
+
     enemy.setTexture('zombie_death');
     if (enemy.anims.currentAnim && enemy.anims.currentAnim.key === 'z_left') { enemy.setFlipX(true); } else { enemy.setFlipX(false); }
     const animKey = Math.random() < 0.5 ? 'death_1' : 'death_2';
