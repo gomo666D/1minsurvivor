@@ -600,35 +600,51 @@ ui_click() {
     survive_success() {
       sfxDbg('survive_success');
       const t = now();
-      // ~2s upbeat victory fanfare (8-bit)
-      const melody = [
-        523.25, 659.25, 783.99, 1046.50, 987.77, 1174.66, 1318.51, 1567.98,
-        1318.51, 1174.66, 1046.50, 987.77, 1046.50, 1318.51, 1567.98, 2093.00
-      ];
-      const step = 0.095; // 16 * 0.095 = 1.52s
-      melody.forEach((f, i) => {
-        const tt = t + i * step;
-        const a = osc('square', f, tt, 0.18, 0.22);
-        env(a.g, tt, 0.001, 0.02, 0.30, 0.10, 0.80);
 
-        // harmony on strong beats
+      // "Stage Clear" style jingle (~2.0s): fast arpeggio + cadence + held chord
+      const lead = [
+        523.25, 659.25, 783.99, 1046.50,   // C E G C
+        659.25, 783.99, 1046.50, 1318.51,  // E G C E
+        783.99, 1046.50, 1318.51, 1567.98, // G C E G
+        1046.50, 1318.51, 1567.98, 2093.00 // C E G C (high)
+      ];
+      const step = 0.075; // 16 * 0.075 = 1.20s
+      lead.forEach((f, i) => {
+        const tt = t + i * step;
+        const a = osc('square', f, tt, 0.12, 0.22);
+        env(a.g, tt, 0.001, 0.02, 0.35, 0.06, 0.85);
+
+        // bass on downbeats
         if (i % 4 === 0) {
-          const h = osc('triangle', f / 2, tt, 0.18, 0.10);
-          env(h.g, tt, 0.001, 0.02, 0.30, 0.10, 0.55);
+          const b = osc('triangle', f / 4, tt, 0.12, 0.10);
+          env(b.g, tt, 0.001, 0.02, 0.35, 0.08, 0.65);
+        }
+
+        // tiny sparkle hit
+        if (i % 8 === 4) {
+          const sp = noise(tt, 0.05, 0.05);
+          env(sp.g, tt, 0.001, 0.01, 0.10, 0.04, 0.35);
         }
       });
 
-      // final chord + sparkle tail to reach ~2s
-      const chordT = t + 16 * step;
-      const c1 = osc('square', 1046.50, chordT, 0.55, 0.20);
-      const c2 = osc('square', 1318.51, chordT, 0.55, 0.16);
-      const c3 = osc('square', 1567.98, chordT, 0.55, 0.14);
-      env(c1.g, chordT, 0.001, 0.03, 0.25, 0.50, 0.85);
-      env(c2.g, chordT, 0.001, 0.03, 0.25, 0.50, 0.80);
-      env(c3.g, chordT, 0.001, 0.03, 0.25, 0.50, 0.75);
+      // Cadence (1.2s -> 1.55s): V -> I
+      const cadT = t + lead.length * step;
+      const cad1 = osc('square', 987.77, cadT, 0.18, 0.18);  // B
+      const cad2 = osc('square', 1318.51, cadT, 0.18, 0.14); // E
+      env(cad1.g, cadT, 0.001, 0.02, 0.20, 0.16, 0.75);
+      env(cad2.g, cadT, 0.001, 0.02, 0.20, 0.16, 0.70);
 
-      const sparkle = noise(chordT + 0.02, 0.45, 0.06);
-      env(sparkle.g, chordT + 0.02, 0.001, 0.03, 0.18, 0.40, 0.40);
+      // Final held major chord (to ~2s)
+      const chordT = cadT + 0.20;
+      const c1 = osc('square', 1046.50, chordT, 0.75, 0.20); // C
+      const c2 = osc('square', 1318.51, chordT, 0.75, 0.16); // E
+      const c3 = osc('square', 1567.98, chordT, 0.75, 0.14); // G
+      env(c1.g, chordT, 0.001, 0.03, 0.18, 0.70, 0.90);
+      env(c2.g, chordT, 0.001, 0.03, 0.18, 0.70, 0.86);
+      env(c3.g, chordT, 0.001, 0.03, 0.18, 0.70, 0.82);
+
+      const tail = noise(chordT + 0.02, 0.45, 0.05);
+      env(tail.g, chordT + 0.02, 0.001, 0.03, 0.20, 0.40, 0.40);
     },
     turret_install() {
       sfxDbg('turret_install');
@@ -755,6 +771,8 @@ let turretSlotsDef = [
 let turretSlots = []; 
 let activeTurrets = [];
 let score = 0, gameTime = 60, hp = 100, maxHp = 100;
+let recentDamageStreak = 0, recentDamageLastAt = 0, recentDamageWindowUntil = 0;
+let powerupsCollected = 0; // counts POWERUP pickups for damage reduction
 let highScore = 0;
 let targetLetters = "HAPPYNEWYEAR".split('');
 let collectedIndices = [];
@@ -782,6 +800,7 @@ let boomerangGlobalAngle = 0;
 function preload() {
     this.load.spritesheet('zombie_sheet', 'assets/zombie.png', { frameWidth: 128, frameHeight: 128 });
     this.load.image('playerTex', 'assets/boat.png');
+    this.load.image('arrowTex', 'assets/arrowred.png');
     this.load.spritesheet('explosion8', 'assets/ark_explosion.png', { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet('hnyLetters', 'assets/text_happynewyear.png', { frameWidth: 110, frameHeight: 128 });
     this.load.spritesheet('countdownNumbers', 'assets/text_number.png', { frameWidth: 110, frameHeight: 128 });
@@ -940,6 +959,7 @@ function create() {
 
     directionArrow = this.add.sprite(player.x, player.y, 'arrowTex').setDepth(20).setVisible(false);
     directionArrow.rotation = -Math.PI / 2;
+    directionArrow._dirAngle = -Math.PI / 2;   // 默认朝上（静止时）
 
     enemies = this.physics.add.group({ runChildUpdate: false, bounceX: 0, bounceY: 0, dragX: 500, dragY: 500 }); 
     this.physics.add.collider(enemies, enemies);
@@ -974,7 +994,33 @@ function create() {
 
     gameStarted = false;
     createStartScreen(this);
+
+    // ===========================================
+    // 【修复】移动端音频解锁代码
+    // 监听第一次点击/触摸，强制唤醒 AudioContext
+    // ===========================================
+    this.input.once('pointerdown', () => {
+        try {
+            // 1. 初始化/恢复 WebAudio Context (SFX)
+            SFX.init();
+            
+            // 2. 尝试预热 BGM (HTML Audio)
+            // 即使逻辑还没让它开始放，先 play() 一下让浏览器给权限
+            const bgmEl = document.getElementById('bgm');
+            if (bgmEl) {
+                // 试图播放，如果被逻辑打断也没关系，重点是获取权限
+                const p = bgmEl.play();
+                if (p && typeof p.catch === 'function') {
+                    p.catch(e => console.log("BGM unlock attempt caught (normal):", e));
+                }
+            }
+        } catch (e) {
+            console.log("Audio unlock failed:", e);
+        }
+    });
 }
+
+
 
 function createStartScreen(scene) {
     const screenWidth = scene.cameras.main.width;
@@ -985,16 +1031,29 @@ function createStartScreen(scene) {
     startLogo.displayWidth = screenWidth * 1.05;
     startLogo.scaleY = startLogo.scaleX; 
     const isDesktop = scene.sys.game.device.os.desktop;
-    const textStr = isDesktop ? "Tap W/S/A/D to start" : "Drag to start";
-    startText = scene.add.text(screenWidth / 2, screenHeight * 0.85, textStr, {
+    const textStr = isDesktop
+        ? "Move with W/A/S/D \nor \ndrag the mouse"
+        : "Ready? Drag to go!";
+    startText = scene.add.text(screenWidth / 2, screenHeight * 0.70, textStr, {
         fontSize: '21px',
         fontFamily: 'Press Start 2P',
         fontStyle: 'bold',
         color: '#FFFFFF',
-        stroke: '#000000',
-        strokeThickness: 4,
+        //stroke: '#000000',
+        //strokeThickness: 4,
         align: 'center'
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(1000);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(1000).setScale(0.9);
+
+
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => {
+        if (!startText || !startText.active) return;
+        startText.setFontFamily('"Press Start 2P"'); // 强制一次
+        startText.setText(startText.text);           // 触发重建贴图
+        if (startText.updateText) startText.updateText(); // Phaser Text: 强制刷新（有则调用）
+    });
+}
+
     scene.tweens.add({ targets: startText, alpha: 0.5, duration: 800, yoyo: true, repeat: -1 });
 }
 
@@ -1193,16 +1252,36 @@ function handlePickupsMagnet(scene) {
 }
 
 function updateVisuals(time) {
+const isMoving = player.body.velocity.length() > 10;
+
+if (isMoving) {
+    const dir = player.body.velocity.angle();
+
+    directionArrow.setScale(1.4);
+
+
+    // 箭头放在前方的距离（可微调）
+    const dist = 180 * CONFIG.PLAYER_SCALE;
+
+    directionArrow.x = player.x + Math.cos(dir) * dist;
+    directionArrow.y = player.y + Math.sin(dir) * dist;
+
+    directionArrow.setVisible(true);
+
+    // 旋转：如果你的 arrowred.png 是“朝上”的箭头，用 +Math.PI/2
+    // 如果发现方向不对，改成 0 / -Math.PI/2 / Math.PI 试一下
+    directionArrow.setRotation(dir + Math.PI / 2);
+
+    // 存一个“纯方向”，避免影响下面的 angle 逻辑
+    directionArrow._dirAngle = dir;
+} else {
+    directionArrow.setVisible(false);
     directionArrow.x = player.x;
     directionArrow.y = player.y;
-    const isMoving = player.body.velocity.length() > 10;
-    if (isMoving) {
-        directionArrow.setVisible(true);
-        directionArrow.setRotation(player.body.velocity.angle());
-    } else {
-        directionArrow.setVisible(false);
-    }
-    let angle = isMoving ? player.body.velocity.angle() : (directionArrow.rotation || 0);
+}
+
+let angle = isMoving ? player.body.velocity.angle() : (directionArrow._dirAngle || 0);
+
     
     if (isMoving) {
         if (wheelLeft.anims.currentAnim?.key !== 'wheel_roll' || !wheelLeft.anims.isPlaying) {
@@ -1337,7 +1416,7 @@ function updateVisuals(time) {
 }
 
 function spawnZombieWave(scene) {
-    if (gameOver) return;
+    if (gameOver || winSequence) return;
     const progress = (60 - gameTime) / 60; 
     let count = Phaser.Math.Between(2, 10);
     let nextDelay = 1000 - (progress * 600); 
@@ -1574,10 +1653,23 @@ function flashShipAndWheels(scene) {
 function handleTrample(obj, enemy) {
     if (gameOver || !enemy.active || enemy.isDying) return;
     if (!isDebugMode) {
-        hp -= CONFIG.HP_TRAMPLE_COST;
-        
+                // damage reduced by POWERUP pickups: every 2 POWERUPs reduces damage by 1, min damage is 2
+        let trampleDmg = CONFIG.HP_TRAMPLE_COST;
+        try {
+            const reduction = Math.min(CONFIG.HP_TRAMPLE_COST - 2, Math.floor((powerupsCollected || 0) / 2));
+            trampleDmg = Math.max(2, CONFIG.HP_TRAMPLE_COST - reduction);
+        } catch (e) {}
+        hp -= trampleDmg;
+        // track consecutive damage to boost HEART drops
+        try {
+            const nowMs = this.time.now;
+            if (nowMs - recentDamageLastAt <= 900) recentDamageStreak = Math.min(recentDamageStreak + 1, 6);
+            else recentDamageStreak = 1;
+            recentDamageLastAt = nowMs;
+            recentDamageWindowUntil = nowMs + 1500;
+        } catch (e) {}
         try { SFX.player_hit(); } catch (e) {}
-showDamageFloatText(this, player.x, player.y - 60, `-${CONFIG.HP_TRAMPLE_COST}`, '#ff0000');
+showDamageFloatText(this, player.x, player.y - 60, `-${trampleDmg}`, '#ff0000');
         flashShipAndWheels(this);
     }
     this.cameras.main.shake(100, 0.005);
@@ -1615,7 +1707,19 @@ comboCount++;
     if (elapsed < 15) allowedTurretsTotal = 3;      
     else if (elapsed < 30) allowedTurretsTotal = 5; 
     else allowedTurretsTotal = 6;                   
-    if (chance < 8) {
+    // HEART drop rules:
+// 1) no HEART if HP is full
+// 2) only after 10s elapsed
+// 3) higher chance during consecutive damage windows
+const heartEligible = (elapsed >= 10 && hp < maxHp);
+let heartChance = 8;
+try {
+    const nowMs = enemy.scene.time.now;
+    if (nowMs <= recentDamageWindowUntil) {
+        heartChance = Math.min(8 + (Math.max(0, recentDamageStreak) * 3), 35);
+    }
+} catch (e) {}
+if (heartEligible && chance < heartChance) {
         if (droppedCounts.heart < CONFIG.LIMIT_HEART && droppedCounts.heart < allowedHearts) dropItem(enemy.scene, enemy.x, enemy.y, 'HEART');
     } else if (chance < 25) {
         let turretsOnGround = pickups.getChildren().filter(p => p.active && p.dropType === 'TURRET').length;
@@ -1639,7 +1743,7 @@ function clearAllEnemiesForWin(scene) {
         const list = enemies.getChildren();
         for (let i = 0; i < list.length; i++) {
             const e = list[i];
-            if (!e || !e.active) continue;
+            if (!e) continue;
             // Remove without affecting score/combo/drops
             try { e.isDying = true; } catch (err) {}
             try { if (e.body) e.body.enable = false; } catch (err) {}
@@ -1648,6 +1752,7 @@ function clearAllEnemiesForWin(scene) {
             try { if (explosionEmitter) explosionEmitter.emitParticleAt(e.x, e.y, 4); } catch (err) {}
             try { e.destroy(); } catch (err) {}
         }
+        try { enemies.clear(true, true); } catch (err) {}
     } catch (e) {}
 }
 
@@ -1826,6 +1931,7 @@ function collectPickup(player, drop) {
             showFloatText(scene, player.x, player.y, msg + "!", COLORS.TURRET);
         } else { score += 200; showFloatText(scene, player.x, player.y, "+200", COLORS.TURRET); }
     } else if (drop.dropType === 'POWERUP') {
+        try { powerupsCollected++; } catch (e) {}
         damagePerShot += 1; try { SFX.powerup_pickup(); } catch (e) {} showPowerupSprite(scene); score += 100; flashPowerupGreen(scene);
     }
     else if (drop.dropType === 'LETTER') {
@@ -1890,7 +1996,7 @@ function generateTextures(scene) {
     g.clear(); g.fillStyle(COLORS.CANNON_BALL, 1); g.fillCircle(8,8,8); g.generateTexture('cannonBallTex', 16, 16);
     g.clear(); g.fillStyle(COLORS.TRAIL_SMOKE, 1); g.fillCircle(5,5,5); g.generateTexture('trailTex', 10, 10);
     g.clear(); g.fillStyle(COLORS.TURRET, 1); g.lineStyle(2,0); g.fillRect(0,0,20,20); g.strokeRect(0,0,20,20); g.generateTexture('turretDropTex', 20, 20);
-    g.clear(); g.fillStyle(COLORS.ARROW, 1); g.fillTriangle(40, 20, 0, 40, 0, 0); g.generateTexture('arrowTex', 40, 40);
+    //g.clear(); g.fillStyle(COLORS.ARROW, 1); g.fillTriangle(40, 20, 0, 40, 0, 0); g.generateTexture('arrowTex', 40, 40);
     g.clear(); g.fillStyle(COLORS.BULLET, 1); g.fillCircle(4,4,4); g.generateTexture('bulletTex', 8, 8);
     // Heart texture for HP icon
     g.clear(); g.fillStyle(COLORS.HEART, 1); g.fillCircle(8,8,8); g.generateTexture('heartTex', 16, 16);
@@ -2037,7 +2143,14 @@ const hudScale = 0.42;
     fpsText = scene.add.text(10, gameConfig.scale.height - 30, 'FPS: 60', { fontSize: '14px', fill: '#00aa00', fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 }).setScrollFactor(0).setDepth(500);
     fpsText.setVisible(false); // Hide FPS as requested
 
-    comboText = scene.add.text(hpIcon.x -25, 150, '', { fontSize: '36px', fill: '#FF4500', fontStyle: 'bold', stroke: '#fff', strokeThickness: 6 }).setScrollFactor(0).setDepth(200).setVisible(false);
+    comboText = scene.add.text(hpIcon.x -25, 150, '', { 
+    fontSize: '24px', 
+    fontFamily: '"Press Start 2P"',  // <--- 重点：加了双引号
+    fill: '#FF4500', 
+    fontStyle: 'bold', 
+    stroke: '#fff', 
+    strokeThickness: 6 
+}).setScrollFactor(0).setDepth(200).setVisible(false);
     
     // REMOVED High Score Text from HUD
 }
@@ -2095,9 +2208,113 @@ function updateTimer() {
         // victory SFX now (single-shot)
         try { if (window.SFX && window.SFX.survive_success) window.SFX.survive_success(); } catch (e) {}
 
+        // Happy New Year victory glow + pops (2s)
+        startVictoryHNYFX(this);
+
         // delay 2s, then show results
         this.time.delayedCall(2000, () => { doGameOver(this, true); }, [], this);
     }
+}
+
+
+function startVictoryHNYFX(scene) {
+    try {
+        if (!scene || !hnyHudSprites || !hnyHudSprites.list) return;
+        const letters = hnyHudSprites.list.filter(s => s && s.active);
+        if (!letters.length) return;
+
+        letters.forEach(s => {
+            if (s.__victoryBaseScale == null) s.__victoryBaseScale = s.scaleX || 1;
+            if (s.__victoryBaseY == null) s.__victoryBaseY = s.y || 0;
+            if (s.__victoryBaseRot == null) s.__victoryBaseRot = s.rotation || 0;
+            s.__victoryBusy = false;
+        });
+
+        let tick = 0;
+        const ev = scene.time.addEvent({
+            delay: 120,
+            loop: true,
+            callback: () => {
+                tick++;
+
+                // Random pops (2–3 letters)
+                const popCount = 2 + Math.floor(Math.random() * 2);
+                for (let i = 0; i < popCount; i++) {
+                    const spr = letters[Math.floor(Math.random() * letters.length)];
+                    if (!spr || !spr.active) continue;
+                    if (spr.__victoryBusy) continue;
+                    spr.__victoryBusy = true;
+
+                    const baseS = spr.__victoryBaseScale || spr.scaleX || 1;
+                    const baseY = spr.__victoryBaseY || spr.y || 0;
+                    const baseR = spr.__victoryBaseRot || spr.rotation || 0;
+
+                    try {
+                        spr.setBlendMode(Phaser.BlendModes.ADD);
+                        spr.setTintFill(0xffffee);
+                    } catch (e) {}
+
+                    scene.tweens.add({
+                        targets: spr,
+                        y: baseY - (8 + Math.random() * 6),
+                        scaleX: baseS * 1.20,
+                        scaleY: baseS * 1.20,
+                        rotation: baseR + (Math.random() < 0.5 ? -0.10 : 0.10),
+                        duration: 90,
+                        yoyo: true,
+                        ease: 'Quad.easeOut',
+                        onComplete: () => {
+                            if (!spr) return;
+                            spr.y = baseY;
+                            spr.rotation = baseR;
+                            spr.scaleX = baseS;
+                            spr.scaleY = baseS;
+                            try { spr.clearTint(); spr.setBlendMode(Phaser.BlendModes.NORMAL); } catch (e) {}
+                            spr.__victoryBusy = false;
+                        }
+                    });
+                }
+
+                // Occasional sweep glow (subtle “firework pop” feel)
+                if (tick % 6 === 0) {
+                    letters.forEach((spr, idx) => {
+                        scene.time.delayedCall(idx * 25, () => {
+                            if (!spr || !spr.active) return;
+                            const baseS = spr.__victoryBaseScale || spr.scaleX || 1;
+                            try { spr.setBlendMode(Phaser.BlendModes.ADD); spr.setTintFill(0xffffff); } catch (e) {}
+                            scene.tweens.add({
+                                targets: spr,
+                                scaleX: baseS * 1.12,
+                                scaleY: baseS * 1.12,
+                                duration: 70,
+                                yoyo: true,
+                                ease: 'Quad.easeOut',
+                                onComplete: () => {
+                                    if (!spr) return;
+                                    try { spr.clearTint(); spr.setBlendMode(Phaser.BlendModes.NORMAL); } catch (e) {}
+                                }
+                            });
+                        });
+                    });
+                }
+            }
+        });
+
+        // Cleanup aligned with the 2s win delay
+        scene.time.delayedCall(2000, () => {
+            try { ev.remove(); } catch (e) {}
+            letters.forEach(spr => {
+                if (!spr) return;
+                const baseS = spr.__victoryBaseScale || spr.scaleX || 1;
+                const baseY = spr.__victoryBaseY || spr.y || 0;
+                const baseR = spr.__victoryBaseRot || spr.rotation || 0;
+                spr.y = baseY;
+                spr.rotation = baseR;
+                try { spr.setScale(baseS); spr.clearTint(); spr.setBlendMode(Phaser.BlendModes.NORMAL); } catch (e) {}
+                spr.__victoryBusy = false;
+            });
+        });
+    } catch (e) {}
 }
 
 function getLetterString() {
@@ -2176,7 +2393,7 @@ function doGameOver(scene, win) {  try { if (!win && window.SFX && window.SFX.sh
     const goBest = document.getElementById('go-best');    const goLetters = document.getElementById('go-letters');
     const goTitle = document.getElementById('go-title');
     
-    if (win && !window.__surviveBonusGiven) { score += 1000; window.__surviveBonusGiven = true; try { SFX.survive_success(); } catch (e) {} }
+    if (win && !window.__surviveBonusGiven) { score += 1000; window.__surviveBonusGiven = true; }
 goScore.innerText = score;
     if (score > highScore) { saveHighScore(score); }
     goBest.innerText = highScore;
