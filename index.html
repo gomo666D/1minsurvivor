@@ -166,7 +166,10 @@
         }
     </style>
     
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js">
+// SFX debug toggle
+window.SFX_DEBUG = true;
+</script>
     <script>
     (function(){
       window.addEventListener('DOMContentLoaded', () => {
@@ -367,6 +370,7 @@ const SFX = (() => {
     if (!ctx) {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
       sfxDbg('AudioContext created', {sampleRate: ctx.sampleRate});
+      sfxDbg('AudioContext created', {sampleRate: ctx.sampleRate});
       master = ctx.createGain();
       master.gain.value = 0.35;
       sfxDbg('Master gain', {gain: master.gain.value}); // overall SFX volume
@@ -431,14 +435,85 @@ const SFX = (() => {
   return {
     init: () => { sfxDbg('init()'); ensure(); },
 
-    ui_click() {
+    
+    ui_start() {
+      sfxDbg('ui_start');
+      const t = now();
+      // race start: 3 beeps + GO sweep
+      const beepFreq = 880;
+      [0.00, 0.14, 0.28].forEach((dt) => {
+        const tt = t + dt;
+        const b = osc('square', beepFreq, tt, 0.08, 0.28);
+        env(b.g, tt, 0.001, 0.02, 0.10, 0.06, 0.90);
+      });
+
+      // short "go" sweep + noise pop
+      const go = osc('square', 660, t + 0.42, 0.22, 0.32);
+      env(go.g, t + 0.42, 0.001, 0.03, 0.18, 0.10, 0.85);
+      pitchSlide(go.o, t + 0.42, 660, 1320, 0.22);
+
+      const pop = noise(t + 0.42, 0.18, 0.12);
+      env(pop.g, t + 0.42, 0.001, 0.02, 0.10, 0.10, 0.65);
+
+      // tiny engine rev tail
+      const rev = osc('triangle', 120, t + 0.46, 0.26, 0.16);
+      env(rev.g, t + 0.46, 0.001, 0.04, 0.14, 0.18, 0.55);
+      pitchSlide(rev.o, t + 0.46, 120, 220, 0.26);
+    },
+
+    ship_explode() {
+      sfxDbg('ship_explode');
+      const t = now();
+      // heavier, more "ship" explosion than normal explosion
+      const n1 = noise(t, 0.95, 0.48);
+      env(n1.g, t, 0.001, 0.10, 0.18, 0.85, 1.0);
+
+      const rumble = osc('triangle', 55, t, 1.05, 0.34);
+      env(rumble.g, t, 0.001, 0.08, 0.15, 0.95, 0.90);
+      pitchSlide(rumble.o, t, 90, 28, 1.05);
+
+      const crack = osc('square', 190, t + 0.02, 0.42, 0.18);
+      env(crack.g, t + 0.02, 0.001, 0.04, 0.12, 0.36, 0.70);
+      pitchSlide(crack.o, t + 0.02, 260, 70, 0.42);
+
+      const debris = noise(t + 0.05, 0.70, 0.22);
+      env(debris.g, t + 0.05, 0.001, 0.08, 0.12, 0.60, 0.35);
+    },
+
+    survival_fail() {
+      sfxDbg('survival_fail');
+      const t = now();
+      // ~2s melodic fail jingle (descending), single-shot (no looping)
+      const melody = [659.25, 622.25, 587.33, 523.25, 493.88, 440.00, 392.00, 349.23, 329.63];
+      const step = 0.14; // 9 * 0.14 = 1.26s sequence
+      melody.forEach((f, i) => {
+        const tt = t + i * step;
+        const a = osc('square', f, tt, 0.20, 0.20);
+        env(a.g, tt, 0.001, 0.03, 0.22, 0.16, 0.80);
+        // subtle harmony
+        const h = osc('triangle', f / 2, tt, 0.20, 0.09);
+        env(h.g, tt, 0.001, 0.03, 0.22, 0.16, 0.55);
+      });
+
+      // low bass "defeat" sweep that lasts ~2s total
+      const bass = osc('triangle', 90, t, 2.0, 0.16);
+      env(bass.g, t, 0.001, 0.08, 0.18, 1.90, 0.70);
+      pitchSlide(bass.o, t, 90, 35, 2.0);
+
+      // light noise tail for texture
+      const n = noise(t + 0.05, 1.2, 0.06);
+      env(n.g, t + 0.05, 0.001, 0.08, 0.15, 1.05, 0.20);
+    },
+ui_click() {
+      sfxDbg('ui_click');
       const _t = now();
       sfxDbg('\g<0>', {t:_t});
       const t = _t;
-      click(t, 0.18);
+      click(t, 0.55);
     },
 
     enemy_hit() {
+      sfxDbg('enemy_hit');
       const _t = now();
       sfxDbg('\g<0>', {t:_t});
       const t = _t;
@@ -448,6 +523,7 @@ const SFX = (() => {
     },
 
     enemy_die() {
+      sfxDbg('enemy_die');
       const _t = now();
       sfxDbg('\g<0>', {t:_t});
       const t = _t;
@@ -459,6 +535,7 @@ const SFX = (() => {
     },
 
     player_hit() {
+      sfxDbg('player_hit');
       const _t = now();
       sfxDbg('\g<0>', {t:_t});
       const t = _t;
@@ -470,17 +547,26 @@ const SFX = (() => {
     },
 
     explosion() {
-      const _t = now();
-      sfxDbg('\g<0>', {t:_t});
-      const t = _t;
-      const n = noise(t, 0.45, 0.35);
-      env(n.g, t, 0.001, 0.06, 0.20, 0.35, 0.9);
-      const a = osc('square', 90, t, 0.5, 0.25);
-      env(a.g, t, 0.001, 0.05, 0.20, 0.45, 0.6);
-      pitchSlide(a.o, t, 120, 40, 0.5);
+      sfxDbg('explosion');
+      const t = now();
+      // longer + punchier explosion (+50% duration)
+      const n1 = noise(t, 0.68, 0.42);
+      env(n1.g, t, 0.001, 0.08, 0.20, 0.55, 0.95);
+
+      const n2 = noise(t + 0.02, 0.55, 0.22);
+      env(n2.g, t + 0.02, 0.001, 0.06, 0.18, 0.50, 0.35);
+
+      const thump = osc('triangle', 80, t, 0.78, 0.28);
+      env(thump.g, t, 0.001, 0.06, 0.18, 0.70, 0.70);
+      pitchSlide(thump.o, t, 110, 35, 0.78);
+
+      const crack = osc('square', 160, t + 0.01, 0.30, 0.16);
+      env(crack.g, t + 0.01, 0.001, 0.03, 0.15, 0.26, 0.55);
+      pitchSlide(crack.o, t + 0.01, 220, 90, 0.30);
     },
 
     powerup_pickup() {
+      sfxDbg('powerup_pickup');
       const _t = now();
       sfxDbg('\g<0>', {t:_t});
       const t = _t;
@@ -491,6 +577,7 @@ const SFX = (() => {
     },
 
     hp_pickup() {
+      sfxDbg('hp_pickup');
       const _t = now();
       sfxDbg('\g<0>', {t:_t});
       const t = _t;
@@ -500,6 +587,7 @@ const SFX = (() => {
     },
 
     letter_collect() {
+      sfxDbg('letter_collect');
       const _t = now();
       sfxDbg('\g<0>', {t:_t});
       const t = _t;
@@ -510,18 +598,106 @@ const SFX = (() => {
     },
 
     survive_success() {
-      const _t = now();
-      sfxDbg('\g<0>', {t:_t});
-      const t = _t;
-      const notes = [523.25, 659.25, 783.99, 1046.5];
+      sfxDbg('survive_success');
+      const t = now();
+      // ~2s upbeat victory fanfare (8-bit)
+      const melody = [
+        523.25, 659.25, 783.99, 1046.50, 987.77, 1174.66, 1318.51, 1567.98,
+        1318.51, 1174.66, 1046.50, 987.77, 1046.50, 1318.51, 1567.98, 2093.00
+      ];
+      const step = 0.095; // 16 * 0.095 = 1.52s
+      melody.forEach((f, i) => {
+        const tt = t + i * step;
+        const a = osc('square', f, tt, 0.18, 0.22);
+        env(a.g, tt, 0.001, 0.02, 0.30, 0.10, 0.80);
+
+        // harmony on strong beats
+        if (i % 4 === 0) {
+          const h = osc('triangle', f / 2, tt, 0.18, 0.10);
+          env(h.g, tt, 0.001, 0.02, 0.30, 0.10, 0.55);
+        }
+      });
+
+      // final chord + sparkle tail to reach ~2s
+      const chordT = t + 16 * step;
+      const c1 = osc('square', 1046.50, chordT, 0.55, 0.20);
+      const c2 = osc('square', 1318.51, chordT, 0.55, 0.16);
+      const c3 = osc('square', 1567.98, chordT, 0.55, 0.14);
+      env(c1.g, chordT, 0.001, 0.03, 0.25, 0.50, 0.85);
+      env(c2.g, chordT, 0.001, 0.03, 0.25, 0.50, 0.80);
+      env(c3.g, chordT, 0.001, 0.03, 0.25, 0.50, 0.75);
+
+      const sparkle = noise(chordT + 0.02, 0.45, 0.06);
+      env(sparkle.g, chordT + 0.02, 0.001, 0.03, 0.18, 0.40, 0.40);
+    },
+    turret_install() {
+      sfxDbg('turret_install');
+      const t = now();
+      // mechanical clamp: click + short square blip
+      const a = osc('square', 320, t, 0.12, 0.22);
+      env(a.g, t, 0.001, 0.02, 0.25, 0.10, 0.7);
+      pitchSlide(a.o, t, 360, 240, 0.10);
+      const n = noise(t, 0.03, 0.10);
+      env(n.g, t, 0.001, 0.01, 0.20, 0.02, 0.18);
+    },
+
+    word_complete() {
+      sfxDbg('word_complete');
+      const t = now();
+      // small win arpeggio
+      const notes = [523.25, 659.25, 783.99]; // C5 E5 G5
+      notes.forEach((f, i) => {
+        const tt = t + i * 0.06;
+        const a = osc('square', f, tt, 0.10, 0.16);
+        env(a.g, tt, 0.001, 0.02, 0.30, 0.08, 0.65);
+      });
+    },
+
+    all_letters_complete() {
+      sfxDbg('all_letters_complete');
+      const t = now();
+      // brighter fanfare
+      const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
       notes.forEach((f, i) => {
         const tt = t + i * 0.08;
-        const a = osc('square', f, tt, 0.12, 0.18);
-        env(a.g, tt, 0.001, 0.02, 0.35, 0.10, 0.7);
+        const a = osc('square', f, tt, 0.14, 0.18);
+        env(a.g, tt, 0.001, 0.02, 0.35, 0.12, 0.75);
+      });
+      const n = noise(t + 0.06, 0.18, 0.10);
+      env(n.g, t + 0.06, 0.001, 0.03, 0.25, 0.14, 0.22);
+    },
+
+    leaderboard_submit() {
+      sfxDbg('leaderboard_submit');
+      const t = now();
+      // UI confirm ping
+      const a = osc('triangle', 880, t, 0.12, 0.16);
+      env(a.g, t, 0.001, 0.02, 0.35, 0.10, 0.6);
+      const b = osc('triangle', 1174.66, t + 0.03, 0.10, 0.12);
+      env(b.g, t + 0.03, 0.001, 0.02, 0.35, 0.08, 0.5);
+    },
+
+    leaderboard_rank_up() {
+      sfxDbg('leaderboard_rank_up');
+      const t = now();
+      // celebratory chord-ish blips
+      const notes = [659.25, 783.99, 987.77]; // E5 G5 B5
+      notes.forEach((f, i) => {
+        const tt = t + i * 0.02;
+        const a = osc('square', f, tt, 0.18, 0.14);
+        env(a.g, tt, 0.001, 0.03, 0.30, 0.16, 0.7);
       });
     },
   };
-})();
+})()
+
+// Expose SFX for debug/test UI
+window.SFX = SFX;
+// Backward/alias names for test + future hooks (no gameplay change)
+if (!window.SFX.ui_start && window.SFX.ui_click) window.SFX.ui_start = window.SFX.ui_click;
+if (!window.SFX.ship_explode && window.SFX.explosion) window.SFX.ship_explode = window.SFX.explosion;
+
+;
 
 
 const COLORS = {
@@ -598,6 +774,7 @@ let hnyHudSprites = null;
 let comboText, comboScaleTween; 
 let gameOver = false;
 let shipDestroyedSequence = false;
+let winSequence = false;
 
 let timerEvent, fireEvent;
 let boomerangGlobalAngle = 0;
@@ -826,6 +1003,7 @@ function startGameLogic(scene) {
     gameStarted = true;
     
     try { SFX.init();
+        try { if (window.SFX && window.SFX.ui_start) window.SFX.ui_start(); } catch(e) {}
         BGM.start(); SFX.ui_click(); } catch (e) {}
 scene.tweens.add({ targets: startText, alpha: 0, duration: 300, onComplete: () => startText.destroy() });
     scene.tweens.add({ targets: startLogo, y: -200, duration: 1000, ease: 'Back.in', onComplete: () => startLogo.setVisible(false) });
@@ -1404,7 +1582,7 @@ showDamageFloatText(this, player.x, player.y - 60, `-${CONFIG.HP_TRAMPLE_COST}`,
     }
     this.cameras.main.shake(100, 0.005);
     killEnemy(enemy);
-    if (!isDebugMode && hp <= 0) startShipDestroyedSequence(this);
+    if (!isDebugMode && hp <= 0) { if (!shipDestroyedSequence) { try { if (window.SFX && window.SFX.survival_fail) window.SFX.survival_fail(); } catch(e) {} } startShipDestroyedSequence(this); }
 }
 
 function killEnemy(enemy) {
@@ -1452,6 +1630,25 @@ comboCount++;
     enemy.once('animationcomplete', () => {
         enemy.scene.tweens.add({ targets: enemy, alpha: 0, duration: 120, yoyo: true, repeat: 1, delay: 200, onComplete: () => { enemy.destroy(); } });
     });
+}
+
+
+function clearAllEnemiesForWin(scene) {
+    try {
+        if (!enemies) return;
+        const list = enemies.getChildren();
+        for (let i = 0; i < list.length; i++) {
+            const e = list[i];
+            if (!e || !e.active) continue;
+            // Remove without affecting score/combo/drops
+            try { e.isDying = true; } catch (err) {}
+            try { if (e.body) e.body.enable = false; } catch (err) {}
+            try { e.setVelocity(0); } catch (err) {}
+            try { if (e.shadow) { e.shadow.destroy(); e.shadow = null; } } catch (err) {}
+            try { if (explosionEmitter) explosionEmitter.emitParticleAt(e.x, e.y, 4); } catch (err) {}
+            try { e.destroy(); } catch (err) {}
+        }
+    } catch (e) {}
 }
 
 function resetCombo() { if(comboCount > 0) { comboText.setText(""); comboCount = 0; } }
@@ -1886,7 +2083,21 @@ function updateTimer() {
     const ones = t % 10;
     if (timeDigitTens) timeDigitTens.setFrame(Math.max(0, Math.min(9, tens)));
     if (timeDigitOnes) timeDigitOnes.setFrame(Math.max(0, Math.min(9, ones)));
-    if (gameTime <= 0) doGameOver(this, true);
+    if (gameTime <= 0 && !winSequence && !gameOver) {
+        winSequence = true;
+
+        // stop ticking further
+        try { if (timerEvent) { timerEvent.remove(); timerEvent = null; } } catch (e) {}
+
+        // wipe all zombies immediately
+        clearAllEnemiesForWin(this);
+
+        // victory SFX now (single-shot)
+        try { if (window.SFX && window.SFX.survive_success) window.SFX.survive_success(); } catch (e) {}
+
+        // delay 2s, then show results
+        this.time.delayedCall(2000, () => { doGameOver(this, true); }, [], this);
+    }
 }
 
 function getLetterString() {
@@ -1953,7 +2164,7 @@ try { if (window._activePowerupText && window._activePowerupText.active) { windo
     });
 }
 
-function doGameOver(scene, win) {
+function doGameOver(scene, win) {  try { if (!win && window.SFX && window.SFX.ship_explode) window.SFX.ship_explode(); } catch(e) {}
     gameOver = true;
     try { BGM.stop(); } catch (e) {}
     try { scene.physics.pause(); } catch (e) {}
@@ -2264,5 +2475,187 @@ goScore.innerText = score;
 
 
   <audio id="bgm" src="assets/BGM.m4a" preload="auto" loop playsinline></audio>
+
+<!-- SFX Test UI (dev) -->
+<div id="sfxTestBtn" style="
+  position: fixed; right: 12px; bottom: 12px; z-index: 99999;
+  font-family: monospace; font-size: 12px; line-height: 12px;
+  padding: 10px 12px; border: 2px solid #ffd54a; border-radius: 10px;
+  background: rgba(0,0,0,0.8); color: #ffd54a; cursor: pointer;
+  user-select: none;
+">SFX TEST</div>
+
+<div id="sfxTestPanel" style="
+  position: fixed; right: 12px; bottom: 60px; z-index: 99999;
+  width: 260px; max-height: 60vh; overflow: auto;
+  font-family: monospace; font-size: 12px;
+  padding: 10px; border: 2px solid #ffd54a; border-radius: 10px;
+  background: rgba(0,0,0,0.9); color: #fff; display: none;
+">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+    <div style="color:#ffd54a; font-weight:bold;">SFX Preview</div>
+    <div id="sfxTestClose" style="color:#ffd54a; cursor:pointer; padding:2px 6px;">✕</div>
+  </div>
+  <div id="sfxTestHint" style="opacity:0.9; margin-bottom:8px;">
+    Click a sound to play. First click unlocks audio.
+  </div>
+  <div id="sfxTestList"></div>
+</div>
+
+
+<script>
+// ===== SFX TEST UI (robust inject) =====
+(function(){
+  function ensureEl(id, tag){
+    let el = document.getElementById(id);
+    if(!el){
+      el = document.createElement(tag||'div');
+      el.id = id;
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  function applyBtnStyle(el){
+    el.textContent = 'SFX TEST';
+    el.style.position = 'fixed';
+    el.style.right = '12px';
+    el.style.top = '12px';
+    el.style.bottom = 'auto';
+    el.style.zIndex = '2147483647';
+    el.style.fontFamily = 'monospace';
+    el.style.fontSize = '12px';
+    el.style.lineHeight = '12px';
+    el.style.padding = '10px 12px';
+    el.style.border = '2px solid #ffd54a';
+    el.style.borderRadius = '10px';
+    el.style.background = 'rgba(0,0,0,0.85)';
+    el.style.color = '#ffd54a';
+    el.style.cursor = 'pointer';
+    el.style.userSelect = 'none';
+    el.style.pointerEvents = 'auto';
+    el.style.display = 'block';
+  }
+
+  function applyPanelStyle(el){
+    el.style.position = 'fixed';
+    el.style.right = '12px';
+    el.style.top = '52px';
+    el.style.bottom = 'auto';
+    el.style.zIndex = '2147483647';
+    el.style.width = '260px';
+    el.style.maxHeight = '70vh';
+    el.style.overflow = 'auto';
+    el.style.fontFamily = 'monospace';
+    el.style.fontSize = '12px';
+    el.style.padding = '10px';
+    el.style.border = '2px solid #ffd54a';
+    el.style.borderRadius = '10px';
+    el.style.background = 'rgba(0,0,0,0.92)';
+    el.style.color = '#fff';
+    el.style.display = 'none';
+    el.style.pointerEvents = 'auto';
+  }
+
+  function buildUI(panel){
+    if(panel.dataset.built === '1') return;
+    panel.dataset.built = '1';
+    panel.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <div style="color:#ffd54a; font-weight:bold;">SFX Preview</div>
+        <div id="sfxTestClose2" style="color:#ffd54a; cursor:pointer; padding:2px 6px;">✕</div>
+      </div>
+      <div style="opacity:0.9; margin-bottom:8px;">Click a sound to play. First click unlocks audio.</div>
+      <div id="sfxTestList2"></div>
+    `;
+  }
+
+  const NAMES = [
+    'ui_start','ui_click','enemy_hit','enemy_die','player_hit','ship_explode','explosion',
+    'powerup_pickup','hp_pickup','letter_collect','turret_install','word_complete',
+    'all_letters_complete','survive_success',
+    'survival_fail','leaderboard_submit','leaderboard_rank_up'
+  ];
+
+  function hasFn(n){ return window.SFX && typeof window.SFX[n] === 'function'; }
+
+  function play(n){
+    try{
+      if(window.SFX && typeof window.SFX.init === 'function') window.SFX.init();
+      if(hasFn(n)) { console.log('[SFX TEST] play', n); window.SFX[n](); }
+      else { console.log('[SFX TEST] missing', n); }
+    }catch(e){ console.log('[SFX TEST] error', n, e && e.message ? e.message : e); }
+  }
+
+  function render(){
+    const list = document.getElementById('sfxTestList2');
+    if(!list) return;
+    list.innerHTML = '';
+    NAMES.forEach((n)=>{
+      const row = document.createElement('div');
+      row.style.display='flex';
+      row.style.alignItems='center';
+      row.style.justifyContent='space-between';
+      row.style.gap='8px';
+      row.style.padding='6px 4px';
+      row.style.borderBottom='1px solid rgba(255,213,74,0.2)';
+
+      const label = document.createElement('div');
+      label.textContent = n;
+      label.style.opacity = hasFn(n) ? '1' : '0.4';
+
+      const b = document.createElement('button');
+      b.textContent='Play';
+      b.style.cursor='pointer';
+      b.style.border='1px solid #ffd54a';
+      b.style.background='rgba(255,213,74,0.1)';
+      b.style.color='#ffd54a';
+      b.style.borderRadius='8px';
+      b.style.padding='4px 8px';
+      b.style.fontFamily='monospace';
+      b.style.fontSize='12px';
+      b.disabled = !hasFn(n);
+      b.addEventListener('click',(ev)=>{ev.stopPropagation(); play(n);});
+
+      row.addEventListener('click',()=>play(n));
+      row.appendChild(label);
+      row.appendChild(b);
+      list.appendChild(row);
+    });
+  }
+
+  function init(){
+    const btn = ensureEl('sfxTestBtn2','div');
+    const panel = ensureEl('sfxTestPanel2','div');
+    applyBtnStyle(btn);
+    applyPanelStyle(panel);
+    buildUI(panel);
+
+    btn.addEventListener('pointerdown', (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      const show = panel.style.display === 'none';
+      panel.style.display = show ? 'block' : 'none';
+      if(show) render();
+    });
+
+    panel.addEventListener('pointerdown', (e)=>{ e.stopPropagation(); });
+
+    panel.addEventListener('click', (e)=>{
+      const close = e.target && e.target.id === 'sfxTestClose2';
+      if(close){ panel.style.display='none'; e.stopPropagation(); }
+    });
+
+    // debug visibility
+    setTimeout(()=>{
+      const r = btn.getBoundingClientRect();
+      console.log('[SFX TEST] button ready', {x:r.x,y:r.y,w:r.width,h:r.height});
+    }, 200);
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+
 </body>
 </html>
