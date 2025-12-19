@@ -186,7 +186,60 @@
           }catch(e){}
       });
     })();
-    </script>
+    
+
+// ===== BGM (HTMLAudioElement) =====
+const BGM = (() => {
+  let el = null;
+  let started = false;
+
+  function ensure() {
+    if (!el) el = document.getElementById('bgm');
+    return el;
+  }
+
+  async function start() {
+    const a = ensure();
+    if (!a) return;
+    a.volume = 0.5;
+    try {
+      // Always restart from beginning when entering gameplay
+      a.currentTime = 0;
+    } catch (e) {}
+    try {
+      const p = a.play();
+      if (p && typeof p.then === 'function') await p;
+      started = true;
+    } catch (e) {
+      // Autoplay blocked: will retry on next user gesture
+      started = false;
+      console.log('[BGM] play blocked:', e && e.message ? e.message : e);
+    }
+  }
+
+  function stop() {
+    const a = ensure();
+    if (!a) return;
+    try { a.pause(); } catch (e) {}
+    try { a.currentTime = 0; } catch (e) {}
+    started = false;
+  }
+
+  function isStarted() { return started; }
+
+  // Pause on tab hidden (avoid stuck audio)
+  document.addEventListener('visibilitychange', () => {
+    const a = ensure();
+    if (!a) return;
+    if (document.hidden) {
+      try { a.pause(); } catch (e) {}
+    }
+  });
+
+  return { start, stop, isStarted };
+})();
+
+</script>
 </head>
 <body>
 
@@ -282,7 +335,7 @@ const CONFIG = {
     BULLET_SPEED: 1500,   
     FIRE_RATE: 25,       
     HP_TRAMPLE_COST: 5,
-    COMBO_TIMEOUT: 2500,
+    COMBO_TIMEOUT: 1000,
     MAGNET_DIST: 400, 
     MAGNET_SPEED: 600, 
     LIMIT_POWERUP: 8,
@@ -296,6 +349,180 @@ const CONFIG = {
     CANNON_STUN_DURATION: 500,
     HIT_STUN_DURATION: 100 
 };
+
+// ===== 8-bit Procedural SFX (WebAudio) =====
+const SFX = (() => {
+  const SFX_DEBUG = true;
+  function sfxDbg(tag, data){
+    if(!SFX_DEBUG) return;
+    try{
+      const st = (ctx && ctx.state) ? ctx.state : 'no_ctx';
+      console.log(`[SFX] ${tag}`, {state: st, ...(data||{})});
+    }catch(e){}
+  }
+  let ctx = null;
+  let master = null;
+
+  function ensure() {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      sfxDbg('AudioContext created', {sampleRate: ctx.sampleRate});
+      master = ctx.createGain();
+      master.gain.value = 0.35;
+      sfxDbg('Master gain', {gain: master.gain.value}); // overall SFX volume
+      master.connect(ctx.destination);
+    }
+    if (ctx.state === 'suspended') { sfxDbg('AudioContext resume()', {before: ctx.state}); ctx.resume().then(()=>sfxDbg('AudioContext resumed', {after: ctx.state})).catch(e=>sfxDbg('AudioContext resume failed', {err: e && e.message ? e.message : String(e)})); }
+  }
+
+  function now() { try{ ensure(); }catch(e){ sfxDbg('ensure() failed', {err: e && e.message ? e.message : String(e)}); throw e; } return ctx.currentTime; }
+
+  function env(gainNode, t, a, d, s, r, peak=0.9) {
+    const g = gainNode.gain;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(0.0001, t);
+    g.linearRampToValueAtTime(peak, t + a);
+    g.linearRampToValueAtTime(peak * s, t + a + d);
+    g.linearRampToValueAtTime(0.0001, t + a + d + r);
+  }
+
+  function osc(type, freq, t, dur, gain=0.6, detune=0) {
+    ensure();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    o.detune.setValueAtTime(detune, t);
+    g.gain.setValueAtTime(gain, t);
+    o.connect(g);
+    g.connect(master);
+    o.start(t);
+    o.stop(t + dur);
+    return { o, g };
+  }
+
+  function noise(t, dur, gain=0.25) {
+    ensure();
+    const bufferSize = Math.floor(ctx.sampleRate * dur);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(gain, t);
+    src.connect(g);
+    g.connect(master);
+    src.start(t);
+    src.stop(t + dur);
+    return { src, g };
+  }
+
+  function pitchSlide(o, t, fromHz, toHz, dur) {
+    o.frequency.setValueAtTime(fromHz, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(1, toHz), t + dur);
+  }
+
+  function click(t, gain=0.2) {
+    const n = noise(t, 0.02, gain);
+    env(n.g, t, 0.001, 0.01, 0.3, 0.02, gain);
+  }
+
+  return {
+    init: () => { sfxDbg('init()'); ensure(); },
+
+    ui_click() {
+      const _t = now();
+      sfxDbg('\g<0>', {t:_t});
+      const t = _t;
+      click(t, 0.18);
+    },
+
+    enemy_hit() {
+      const _t = now();
+      sfxDbg('\g<0>', {t:_t});
+      const t = _t;
+      const a = osc('square', 420, t, 0.08, 0.35);
+      env(a.g, t, 0.001, 0.02, 0.25, 0.06, 0.5);
+      pitchSlide(a.o, t, 520, 260, 0.08);
+    },
+
+    enemy_die() {
+      const _t = now();
+      sfxDbg('\g<0>', {t:_t});
+      const t = _t;
+      const a = osc('square', 220, t, 0.18, 0.35);
+      env(a.g, t, 0.001, 0.03, 0.25, 0.14, 0.7);
+      pitchSlide(a.o, t, 260, 80, 0.18);
+      const n = noise(t, 0.12, 0.18);
+      env(n.g, t, 0.001, 0.02, 0.25, 0.10, 0.25);
+    },
+
+    player_hit() {
+      const _t = now();
+      sfxDbg('\g<0>', {t:_t});
+      const t = _t;
+      const a = osc('square', 140, t, 0.12, 0.45);
+      env(a.g, t, 0.001, 0.03, 0.20, 0.10, 0.8);
+      pitchSlide(a.o, t, 180, 90, 0.12);
+      const n = noise(t, 0.06, 0.12);
+      env(n.g, t, 0.001, 0.01, 0.30, 0.05, 0.18);
+    },
+
+    explosion() {
+      const _t = now();
+      sfxDbg('\g<0>', {t:_t});
+      const t = _t;
+      const n = noise(t, 0.45, 0.35);
+      env(n.g, t, 0.001, 0.06, 0.20, 0.35, 0.9);
+      const a = osc('square', 90, t, 0.5, 0.25);
+      env(a.g, t, 0.001, 0.05, 0.20, 0.45, 0.6);
+      pitchSlide(a.o, t, 120, 40, 0.5);
+    },
+
+    powerup_pickup() {
+      const _t = now();
+      sfxDbg('\g<0>', {t:_t});
+      const t = _t;
+      const a1 = osc('square', 880, t, 0.20, 0.22);
+      env(a1.g, t, 0.001, 0.03, 0.35, 0.16, 0.8);
+      const a2 = osc('square', 1320, t + 0.03, 0.18, 0.18);
+      env(a2.g, t + 0.03, 0.001, 0.03, 0.35, 0.14, 0.6);
+    },
+
+    hp_pickup() {
+      const _t = now();
+      sfxDbg('\g<0>', {t:_t});
+      const t = _t;
+      const a = osc('triangle', 520, t, 0.22, 0.22);
+      env(a.g, t, 0.001, 0.03, 0.40, 0.18, 0.7);
+      pitchSlide(a.o, t, 480, 720, 0.12);
+    },
+
+    letter_collect() {
+      const _t = now();
+      sfxDbg('\g<0>', {t:_t});
+      const t = _t;
+      const a = osc('square', 740, t, 0.14, 0.18);
+      env(a.g, t, 0.001, 0.02, 0.35, 0.11, 0.7);
+      const b = osc('square', 988, t + 0.04, 0.12, 0.14);
+      env(b.g, t + 0.04, 0.001, 0.02, 0.35, 0.09, 0.5);
+    },
+
+    survive_success() {
+      const _t = now();
+      sfxDbg('\g<0>', {t:_t});
+      const t = _t;
+      const notes = [523.25, 659.25, 783.99, 1046.5];
+      notes.forEach((f, i) => {
+        const tt = t + i * 0.08;
+        const a = osc('square', f, tt, 0.12, 0.18);
+        env(a.g, tt, 0.001, 0.02, 0.35, 0.10, 0.7);
+      });
+    },
+  };
+})();
+
 
 const COLORS = {
     PLAYER_BODY: 0x888888, PLAYER_DECK: 0xAAAAAA, 
@@ -355,7 +582,8 @@ let score = 0, gameTime = 60, hp = 100, maxHp = 100;
 let highScore = 0;
 let targetLetters = "HAPPYNEWYEAR".split('');
 let collectedIndices = [];
-let droppedLetterIndices = []; 
+let droppedLetterIndices = [];
+let letterBonusFlags = { happy:false, new:false, year:false, all:false }; 
 let damagePerShot = 1; 
 let droppedCounts = { powerup: 0, heart: 0 };
 let comboCount = 0;
@@ -596,7 +824,10 @@ function createStartScreen(scene) {
 function startGameLogic(scene) {
     if (gameStarted) return;
     gameStarted = true;
-    scene.tweens.add({ targets: startText, alpha: 0, duration: 300, onComplete: () => startText.destroy() });
+    
+    try { SFX.init();
+        BGM.start(); SFX.ui_click(); } catch (e) {}
+scene.tweens.add({ targets: startText, alpha: 0, duration: 300, onComplete: () => startText.destroy() });
     scene.tweens.add({ targets: startLogo, y: -200, duration: 1000, ease: 'Back.in', onComplete: () => startLogo.setVisible(false) });
     scene.time.delayedCall(1000, () => runHUDIntro(scene));
 spawnZombieWave(scene);
@@ -1137,7 +1368,9 @@ function hitEnemyByBoomerang(boomerang, enemy) {
 function applyDamageToEnemy(enemy, dmg) {
     if (enemy.isDying) return; 
     enemy.hp -= dmg;
-    enemy.setTintFill(0xffffff);
+    
+    try { SFX.enemy_hit(); } catch (e) {}
+enemy.setTintFill(0xffffff);
     enemy.scene.time.delayedCall(50, () => { if(enemy.active) enemy.clearTint(); });
     enemy.stunUntil = enemy.scene.time.now + CONFIG.HIT_STUN_DURATION;
     if (enemy.hp <= 0) killEnemy(enemy);
@@ -1164,7 +1397,9 @@ function handleTrample(obj, enemy) {
     if (gameOver || !enemy.active || enemy.isDying) return;
     if (!isDebugMode) {
         hp -= CONFIG.HP_TRAMPLE_COST;
-        showFloatText(this, player.x, player.y - 60, `-${CONFIG.HP_TRAMPLE_COST}`, '#ff0000');
+        
+        try { SFX.player_hit(); } catch (e) {}
+showDamageFloatText(this, player.x, player.y - 60, `-${CONFIG.HP_TRAMPLE_COST}`, '#ff0000');
         flashShipAndWheels(this);
     }
     this.cameras.main.shake(100, 0.005);
@@ -1177,7 +1412,9 @@ function killEnemy(enemy) {
     enemy.isDying = true; enemy.body.enable = false; enemy.setVelocity(0); 
     if (enemy.shadow) enemy.shadow.destroy();
     explosionEmitter.emitParticleAt(enemy.x, enemy.y, 6);
-    comboCount++;
+    
+    try { SFX.enemy_die(); } catch (e) {}
+comboCount++;
     if (comboTimerEvent) comboTimerEvent.remove(); 
     comboTimerEvent = enemy.scene.time.delayedCall(CONFIG.COMBO_TIMEOUT, resetCombo, [], enemy.scene);
     updateComboUI(); 
@@ -1297,11 +1534,21 @@ function dropItem(scene, x, y, type) {
     sprite.setDepth(6);
 }
 
+
+function applyLetterBonuses() {
+    const s = new Set(collectedIndices || []);
+    if (!letterBonusFlags.happy && [0,1,2,3,4].every(i => s.has(i))) { score += 500; letterBonusFlags.happy = true; }
+    if (!letterBonusFlags.new   && [5,6,7].every(i => s.has(i)))     { score += 300; letterBonusFlags.new = true; }
+    if (!letterBonusFlags.year  && [8,9,10,11].every(i => s.has(i))) { score += 400; letterBonusFlags.year = true; }
+    if (!letterBonusFlags.all && letterBonusFlags.happy && letterBonusFlags.new && letterBonusFlags.year) { score += 1000; letterBonusFlags.all = true; }
+}
+
 function autoCollectLetterToHUD(scene, drop) {
+    try { SFX.letter_collect(); } catch (e) {}
     if (!drop || !drop.active) return;
     if (typeof drop.letterIndex !== 'number') return;
     if (!hnyHudSprites || !hnyHudSprites.list || !hnyHudSprites.list[drop.letterIndex]) {
-        if (!collectedIndices.includes(drop.letterIndex)) { collectedIndices.push(drop.letterIndex); updateLetterUI(); }
+        if (!collectedIndices.includes(drop.letterIndex)) { collectedIndices.push(drop.letterIndex); score += 100; applyLetterBonuses(); updateLetterUI(); }
         try { drop.destroy(); } catch (e) {}
         return;
     }
@@ -1373,15 +1620,16 @@ function collectPickup(player, drop) {
     if (drop.dropType === 'LETTER') return;
     setActionLog("Get " + drop.dropType);
     if (drop.dropType === 'HEART') {
-        hp = Math.min(hp + 20, maxHp); showHPSprite(scene); flashPowerupGreen(scene);
+        hp = Math.min(hp + 20, maxHp); try { SFX.hp_pickup(); } catch (e) {} showHPSprite(scene); flashPowerupGreen(scene);
     } else if (drop.dropType === 'TURRET') {
         if (activeTurrets.length < 6) {
             addTurret(scene, drop.specificType); 
+             try { SFX.ui_click(); } catch (e) {}
             let msg = drop.specificType; if(msg === 'BOOMERANG') msg = 'SAW!';
             showFloatText(scene, player.x, player.y, msg + "!", COLORS.TURRET);
         } else { score += 200; showFloatText(scene, player.x, player.y, "+200", COLORS.TURRET); }
     } else if (drop.dropType === 'POWERUP') {
-        damagePerShot += 1; showPowerupSprite(scene); score += 100; flashPowerupGreen(scene);
+        damagePerShot += 1; try { SFX.powerup_pickup(); } catch (e) {} showPowerupSprite(scene); score += 100; flashPowerupGreen(scene);
     }
     else if (drop.dropType === 'LETTER') {
         if (!collectedIndices.includes(drop.letterIndex)) {
@@ -1418,6 +1666,20 @@ function collectPickup(player, drop) {
 function showFloatText(scene, x, y, msg, color) {
     const txt = scene.add.text(x, y - 40, msg, { fontSize: '18px', color: (typeof color === 'string' ? color : '#' + color.toString(16)), fontStyle: 'bold', stroke: '#fff', strokeThickness: 3 }).setOrigin(0.5).setDepth(100);
     scene.tweens.add({ targets: txt, y: y - 100, alpha: 0, duration: 800, onComplete: () => txt.destroy() });
+}
+
+
+function showDamageFloatText(scene, x, y, msg, color) {
+    // Bigger, higher, and with random X offset for ship-damage HP loss indicator only
+    const ox = (Phaser && Phaser.Math && Phaser.Math.Between) ? Phaser.Math.Between(-50, 50) : (Math.random() * 60 - 30);
+    const txt = scene.add.text(x + ox, y - 90, msg, { 
+        fontSize: '27px',
+        fontFamily: '"Press Start 2P"',
+        fill: color || '#ff0000',
+        stroke: '#fff',
+        strokeThickness: 4
+    }).setOrigin(0.5).setDepth(100);
+    scene.tweens.add({ targets: txt, y: y - 150, alpha: 0, duration: 800, onComplete: () => txt.destroy() });
 }
 
 function generateTextures(scene) {
@@ -1578,7 +1840,7 @@ const hudScale = 0.42;
     fpsText = scene.add.text(10, gameConfig.scale.height - 30, 'FPS: 60', { fontSize: '14px', fill: '#00aa00', fontStyle: 'bold', stroke: '#fff', strokeThickness: 2 }).setScrollFactor(0).setDepth(500);
     fpsText.setVisible(false); // Hide FPS as requested
 
-    comboText = scene.add.text(20, 150, '', { fontSize: '36px', fill: '#FF4500', fontStyle: 'bold', stroke: '#fff', strokeThickness: 6 }).setScrollFactor(0).setDepth(200).setVisible(false);
+    comboText = scene.add.text(hpIcon.x -25, 150, '', { fontSize: '36px', fill: '#FF4500', fontStyle: 'bold', stroke: '#fff', strokeThickness: 6 }).setScrollFactor(0).setDepth(200).setVisible(false);
     
     // REMOVED High Score Text from HUD
 }
@@ -1653,7 +1915,9 @@ function updateLetterUI() {
 function startShipDestroyedSequence(scene) {
     if (shipDestroyedSequence) return;
     shipDestroyedSequence = true;
-    try { if (window._activePowerupText && window._activePowerupText.active) { window._activePowerupText.destroy(); } if (window._activeHPText && window._activeHPText.active) { window._activeHPText.destroy(); } window._activePowerupText = null; window._activeHPText = null; } catch (e) {}
+    
+    try { SFX.explosion(); } catch (e) {}
+try { if (window._activePowerupText && window._activePowerupText.active) { window._activePowerupText.destroy(); } if (window._activeHPText && window._activeHPText.active) { window._activeHPText.destroy(); } window._activePowerupText = null; window._activeHPText = null; } catch (e) {}
     try { if (timerEvent) { timerEvent.remove(); } } catch (e) {}
     try { if (fireEvent) { fireEvent.remove(); } } catch (e) {}
     try { if (comboTimerEvent) { comboTimerEvent.remove(); } } catch (e) {}
@@ -1691,6 +1955,7 @@ function startShipDestroyedSequence(scene) {
 
 function doGameOver(scene, win) {
     gameOver = true;
+    try { BGM.stop(); } catch (e) {}
     try { scene.physics.pause(); } catch (e) {}
     try { if (timerEvent) { timerEvent.remove(); } } catch (e) {}
     try { if (fireEvent) { fireEvent.remove(); } } catch (e) {}
@@ -1699,7 +1964,9 @@ function doGameOver(scene, win) {
     const goScore = document.getElementById('go-score');
     const goBest = document.getElementById('go-best');    const goLetters = document.getElementById('go-letters');
     const goTitle = document.getElementById('go-title');
-    goScore.innerText = score;
+    
+    if (win && !window.__surviveBonusGiven) { score += 1000; window.__surviveBonusGiven = true; try { SFX.survive_success(); } catch (e) {} }
+goScore.innerText = score;
     if (score > highScore) { saveHighScore(score); }
     goBest.innerText = highScore;
     try { renderHappyNewYearSpritesDOM(new Set(collectedIndices || [])); } catch (e) {}
@@ -1995,5 +2262,7 @@ function doGameOver(scene, win) {
   })();
 </script>
 
+
+  <audio id="bgm" src="assets/BGM.m4a" preload="auto" loop playsinline></audio>
 </body>
 </html>
